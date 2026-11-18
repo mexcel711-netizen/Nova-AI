@@ -39,3 +39,16 @@ export async function searchInChrome(query: string): Promise<void> {
   const data = await response.json() as { error?: string };
   if (!response.ok) throw new Error(data.error || 'Chrome search failed.');
 }
+
+
+export async function openDesktopLocation(location: string): Promise<void> {
+  const token = getDesktopBridgeToken();
+  if (!token) throw new Error('Desktop companion pair nahi hai. Desktop Bridge panel mein pairing token enter karo.');
+  const response = await fetch('http://127.0.0.1:3210/v1/open-location', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ location }),
+  });
+  const data = await response.json() as { error?: string };
+  if (!response.ok) throw new Error(data.error || 'Folder open failed.');
+}
