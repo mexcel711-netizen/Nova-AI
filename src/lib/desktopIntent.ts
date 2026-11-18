@@ -1,6 +1,6 @@
 import { openChromeNewTab, runDesktopApp, searchInChrome } from './desktopBridge';
 
-export async function executeDesktopCommand(raw: string): Promise<{ reply: string; emotion: 'happy' | 'excited' } | null> {
+export async function executeDesktopCommand(raw: string): Promise<{ reply: string; emotion: 'happy' } | null> {
   const command = raw.trim().toLowerCase().replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ');
   const newTab = /^(?:(?:google )?chrome(?: (?:mein|ka|ke))? )?(?:new|naya) tab(?: (?:kholo|open(?: karo)?))?$/.test(command);
   if (newTab) {
@@ -34,7 +34,7 @@ export async function executeDesktopCommand(raw: string): Promise<{ reply: strin
   const app = raw.match(/^(?:please\s+)?(?:(?:open|launch)\s+)?(?:google\s+)?(chrome|edge|notepad|calculator)(?:\s+(?:kholo|open(?:\s+karo)?|launch(?:\s+karo)?))?$/i);
   if (app) {
     await runDesktopApp(app[1].toLowerCase());
-    return { reply: `${app[1]} launch kar diya hai.`, emotion: 'excited' };
+    return { reply: `${app[1]} launch kar diya hai.`, emotion: 'happy' };
   }
   return null;
 }
