@@ -38,3 +38,17 @@ This is cloud-backed speech synthesis, so it needs internet access. Voice availa
 - URL opening accepts HTTP/HTTPS only.
 - The companion has no remote port exposure; do not change the bind address to `0.0.0.0`.
 - This is a local development companion, not a signed Windows installer or Windows service. Keep it running while using desktop actions.
+
+
+## Natural desktop voice commands
+With the companion paired, NOVA understands these supported phrases:
+- `Chrome kholo` — launch Chrome on the desktop
+- `Chrome ka new tab kholo`, `Chrome ke new tab kholo`, or `new tab kholo` — open a new Chrome tab
+- `YouTube kholo`, `Google kholo`, `Gmail kholo`, `WhatsApp kholo`, `GitHub kholo`, or `ChatGPT kholo` — open the site in a Chrome tab
+- `Google pe cats search karo` or `Chrome mein cats search karo` — search in a new Chrome tab
+- `Edge kholo`, `Notepad kholo`, or `Calculator kholo` — launch the named desktop app
+
+Chrome tab requests use Chrome's `--new-tab` switch, which targets an existing Chrome session when one is already running. Only HTTP/HTTPS destinations are accepted by the companion.
+
+## Emotion-aware voice delivery
+The companion passes emotion-dependent rate and pitch to Edge Neural TTS for calm, happy, excited, sad, empathetic, thoughtful, confident, angry, and surprised replies. These are subtle prosody adjustments, not a guarantee of human-level emotional acting. The Urdu female voice is `ur-PK-UzmaNeural`; actual voice naturalness depends on Microsoft's service and should be auditioned on the target PC.
