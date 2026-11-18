@@ -423,7 +423,7 @@ export default function App() {
     let latestTranscript = '';
     let sentFinal = false;
     const handle = startBrowserRecognition({
-      lang: config.language === 'ur' ? 'ur-PK' : 'en-US',
+      lang: config.language === 'en' ? 'en-US' : 'ur-PK',
       continuous: false,
       onTranscript: (transcript, isFinal) => {
         latestTranscript = transcript;
