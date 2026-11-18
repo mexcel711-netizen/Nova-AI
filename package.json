@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "test": "tsx --test src/lib/*.test.ts",
     "db:migrate": "bunx wrangler d1 execute nova-ai-production --remote --file=./migrations/0001_initial.sql",
-    "deploy": "bun run build && bunx wrangler deploy"
+    "deploy": "bun run build && bunx wrangler deploy",
+    "desktop:companion": "node desktop-companion/agent.mjs"
   },
   "dependencies": {
     "@google/genai": "^3.5.0",

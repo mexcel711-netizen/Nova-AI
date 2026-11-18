@@ -54,3 +54,169 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* NOVA command-centre visual system */
+:root {
+  color-scheme: dark;
+  --nova-bg: #050912;
+  --nova-panel: rgba(10, 20, 34, 0.88);
+  --nova-line: rgba(80, 190, 225, 0.18);
+  --nova-cyan: #53e7ff;
+  --nova-blue: #458dff;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(0, 151, 210, 0.10), transparent 42%),
+    linear-gradient(145deg, #050912 0%, #080e1a 52%, #050912 100%);
+}
+
+[aria-label="Assistant voice stage"] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 43%, rgba(0, 173, 220, 0.11), transparent 44%),
+    linear-gradient(160deg, rgba(7, 16, 29, 0.98), rgba(5, 10, 19, 0.98)) !important;
+}
+
+[aria-label="Assistant voice stage"]::before,
+[aria-label="Assistant voice stage"]::after {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+}
+
+[aria-label="Assistant voice stage"]::before {
+  inset: 18px;
+  border: 1px solid rgba(83, 231, 255, 0.08);
+  border-radius: 22px;
+  background:
+    linear-gradient(rgba(83, 231, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(83, 231, 255, 0.025) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+[aria-label="Assistant voice stage"]::after {
+  width: min(72%, 560px);
+  height: 1px;
+  bottom: 116px;
+  left: 14%;
+  background: linear-gradient(90deg, transparent, rgba(83, 231, 255, 0.32), transparent);
+  box-shadow: 0 0 26px rgba(83, 231, 255, 0.25);
+}
+
+[aria-label="Assistant voice stage"] > div:first-child {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  padding: 10px 14px;
+  border: 1px solid var(--nova-line);
+  border-radius: 14px;
+  background: rgba(7, 17, 30, 0.76);
+  backdrop-filter: blur(16px);
+}
+
+[aria-label="Assistant voice stage"] [data-testid="holographic-avatar"] {
+  filter: drop-shadow(0 0 28px rgba(0, 202, 255, 0.16));
+}
+
+[aria-label="Assistant voice stage"] canvas {
+  width: clamp(250px, 31vw, 390px);
+  height: clamp(250px, 31vw, 390px);
+}
+
+[aria-label="Assistant voice stage"] h2 {
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 24px rgba(83, 231, 255, 0.34);
+}
+
+[aria-label="Assistant voice stage"] [role="group"] {
+  border-color: var(--nova-line);
+  background: rgba(5, 13, 24, 0.84);
+  backdrop-filter: blur(12px);
+}
+
+[aria-label="Assistant voice stage"] button,
+[aria-label="Conversation transcript"] button {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+[aria-label="Assistant voice stage"] button:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(0, 205, 255, 0.10);
+  transform: translateY(-1px);
+}
+
+[aria-label="Conversation transcript"] {
+  background:
+    linear-gradient(180deg, rgba(10, 19, 33, 0.98), rgba(6, 12, 22, 0.99)) !important;
+}
+
+[aria-label="Conversation transcript"] > div:first-child {
+  background: rgba(8, 18, 31, 0.9);
+  backdrop-filter: blur(14px);
+}
+
+[data-testid="chat-messages-list"] > div > div:first-child {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+[data-testid="chat-messages-list"] > div > div:first-child:has(p) {
+  border-radius: 14px;
+}
+
+[aria-label="Conversation transcript"] form {
+  background: rgba(5, 11, 20, 0.96) !important;
+  backdrop-filter: blur(18px);
+}
+
+#nova-chat-input {
+  min-height: 46px;
+  border-color: rgba(83, 231, 255, 0.18);
+  background: rgba(11, 22, 38, 0.94);
+}
+
+#nova-chat-input:focus {
+  box-shadow: 0 0 0 3px rgba(83, 231, 255, 0.08), 0 0 24px rgba(83, 231, 255, 0.08);
+}
+
+@media (min-width: 1024px) {
+  [aria-label="Assistant voice stage"] {
+    min-height: 0;
+    padding: 22px clamp(18px, 2.5vw, 38px);
+  }
+
+  [aria-label="Conversation transcript"] {
+    border-left: 1px solid rgba(80, 190, 225, 0.12);
+  }
+}
+
+@media (max-width: 1023px) {
+  [aria-label="Assistant voice stage"] {
+    min-height: 680px;
+  }
+
+  [aria-label="Assistant voice stage"] canvas {
+    width: min(76vw, 340px);
+    height: min(76vw, 340px);
+  }
+
+  [aria-label="Conversation transcript"] {
+    min-height: 520px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [aria-label="Assistant voice stage"] button,
+  [aria-label="Conversation transcript"] button {
+    transition: none;
+  }
+}

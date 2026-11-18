@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { CharacterView } from './components/views/CharacterView';
 import { HomeView } from './components/views/HomeView';
+import { runDesktopApp } from './lib/desktopBridge';
 import { MemoryView } from './components/views/MemoryView';
 import { RecentView } from './components/views/RecentView';
 import { SettingsView } from './components/views/SettingsView';
@@ -269,6 +270,33 @@ export default function App() {
       chatAbortRef.current = controller;
 
       try {
+        const desktopMatch = text.match(/^(?:please\\s+)?(?:(?:open|launch)\\s+)?(?:google\\s+)?(chrome|edge|notepad|calculator)(?:\\s+(?:kholo|open(?:\\s+karo)?|launch(?:\\s+karo)?))?$/i);
+        if (desktopMatch) {
+          const app = desktopMatch[1].toLowerCase();
+          await runDesktopApp(app);
+          const reply = `${app[0].toUpperCase() + app.slice(1)} launch kar diya hai.`;
+          const assistantMsg: ChatMessage = {
+            id: `assistant-${Date.now()}`,
+            sessionId,
+            role: 'assistant',
+            content: reply,
+            emotion: 'happy',
+            language: 'ur',
+            timestamp: new Date().toISOString(),
+            modelUsed: 'desktop-companion',
+            providerUsed: 'local-desktop',
+            thinkingUsed: false,
+            skillExecuted: 'desktop_launch',
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+          setIsSending(false);
+          chatAbortRef.current = null;
+          setAvatarEmotion('happy');
+          if (config.auto_speak) await speakWithLipSync(reply, 'ur', 'happy');
+          else setAvatarState('idle');
+          return;
+        }
+
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
