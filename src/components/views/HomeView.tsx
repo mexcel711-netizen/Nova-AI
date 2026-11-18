@@ -17,6 +17,7 @@ import type {
   ProviderStatus,
 } from '../../types/nova';
 import { HolographicAvatar } from '../HolographicAvatar';
+import { DesktopBridgePanel } from '../DesktopBridgePanel';
 
 interface HomeViewProps {
   config: AppConfig;
@@ -285,6 +286,8 @@ export function HomeView({
             ))}
           </div>
         </div>
+
+        <DesktopBridgePanel />
       </section>
 
       {/* Right Chat Transcript Panel */}
