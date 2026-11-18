@@ -1,7 +1,18 @@
 import { openChromeNewTab, runDesktopApp, searchInChrome } from './desktopBridge';
 
 export async function executeDesktopCommand(raw: string): Promise<{ reply: string; emotion: 'happy' } | null> {
-  const command = raw.trim().toLowerCase().replace(/[!?.,]/g, ' ').replace(/\s+/g, ' ');
+  const urduWords: Record<string, string> = {
+    'کروم': 'chrome', 'گوگل': 'google', 'کھولو': 'kholo', 'کھولیں': 'kholo',
+    'نیا': 'naya', 'ٹیب': 'tab', 'کا': 'ka', 'کے': 'ke', 'میں': 'mein',
+    'پر': 'par', 'پہ': 'pe', 'تلاش': 'search', 'سرچ': 'search',
+    'یوٹیوب': 'youtube', 'جی میل': 'gmail', 'فیس بک': 'facebook',
+    'واٹس ایپ': 'whatsapp', 'نوٹ پیڈ': 'notepad', 'کیلکولیٹر': 'calculator',
+    'ایج': 'edge', 'گٹ ہب': 'github', 'چیٹ جی پی ٹی': 'chatgpt',
+  };
+  const translated = raw.trim().toLowerCase().replace(/[!?.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/کروم|گوگل|کھولو|کھولیں|نیا|ٹیب|کا|کے|میں|پر|پہ|تلاش|سرچ|یوٹیوب|جی میل|فیس بک|واٹس ایپ|نوٹ پیڈ|کیلکولیٹر|ایج|گٹ ہب|چیٹ جی پی ٹی/g, (word) => urduWords[word] || word);
+  const command = translated.replace(/\s+/g, ' ').trim();
   const newTab = /^(?:(?:google )?chrome(?: (?:mein|ka|ke))? )?(?:new|naya) tab(?: (?:kholo|open(?: karo)?))?$/.test(command);
   if (newTab) {
     await openChromeNewTab();
