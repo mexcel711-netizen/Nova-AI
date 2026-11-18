@@ -87,6 +87,7 @@ export async function speakText(params: {
           body: JSON.stringify({
             text: cleanText.slice(0, 2500),
             voice: params.language === 'ur' ? 'ur-PK-UzmaNeural' : 'en-US-JennyNeural',
+            emotion: params.emotion || 'calm',
           }),
           signal: controller.signal,
         });
