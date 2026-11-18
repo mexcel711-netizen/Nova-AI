@@ -1,275 +1,35 @@
-import {
-  detectEmotionFromText,
-  extractEmotionAndCleanText,
-  resolveActiveAiProvider,
-  splitSpeechChunks,
-} from '../src/lib/emotionAndSpeech';
+import { detectEmotionFromText, extractEmotionAndCleanText, resolveActiveAiProvider, splitSpeechChunks } from '../src/lib/emotionAndSpeech';
 import { extractMemoriesFromUtterance } from '../src/lib/memoryExtractor';
-import { detectUrduIntent, matchSkillCommand } from '../src/lib/skillMatcher';
-import type {
-  AppConfig,
-  ChatApiResponse,
-  FacialEmotion,
-  ProviderStatus,
-  SkillConfig,
-} from '../src/types/nova';
+import { detectUrduIntent, isComplexThinkingQuery, matchSkillCommand } from '../src/lib/skillMatcher';
+import type { AppConfig, ChatApiResponse, ProviderStatus } from '../src/types/nova';
 
-interface CloudflareAiBinding {
-  run: (
-    model: string,
-    input: {
-      messages?: Array<{ role: string; content: string }>;
-      text?: string;
-    }
-  ) => Promise<{ response?: string } | ReadableStream<Uint8Array>>;
-}
-
-interface WorkerEnv {
-  AI?: CloudflareAiBinding;
-  ASSETS: { fetch: (req: Request) => Promise<Response> };
-  GEMINI_API_KEY?: string;
-  CLOUDFLARE_MODEL?: string;
-}
-
-const DEFAULT_WORKER_CONFIG: AppConfig = {
-  assistant_name: 'NOVA',
-  personality: 'friendly_professional',
-  custom_prompt:
-    'You are NOVA, a poised, warm Pakistani female AI assistant fluent in Urdu, Roman Urdu, and English.',
-  language: 'bilingual',
-  response_tone: 'casual',
-  tts_voice: 'Kore',
-  voice_speed: 1.0,
-  voice_volume: 1.0,
-  stt_model: 'base',
-  wake_word: 'hey nova',
-  wake_word_enabled: false,
-  auto_speak: true,
-  deep_thinking_mode: 'auto',
-  default_model: 'gemini-4-hydrogen',
-  ai_provider: 'auto',
-};
-
-const DEFAULT_WORKER_SKILLS: SkillConfig[] = [
-  {
-    id: 1,
-    skill_name: 'app_launcher',
-    display_name: 'App & Web Launcher',
-    description: 'Opens apps and websites via English or Urdu commands.',
-    trigger_phrases: ['open', 'launch', 'start', 'kholo'],
-    action_type: 'launch',
-    action_value: 'browser_launcher',
-    is_enabled: true,
-    is_custom: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    skill_name: 'calculator',
-    display_name: 'Precision Calculator',
-    description: 'Evaluates math expressions.',
-    trigger_phrases: ['calculate', 'compute', 'hisaab'],
-    action_type: 'calc',
-    action_value: 'math_eval',
-    is_enabled: true,
-    is_custom: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    skill_name: 'time_date',
-    display_name: 'Clock & Calendar',
-    description: 'Reports current local time and date.',
-    trigger_phrases: ['what time', 'waqt', 'tareekh'],
-    action_type: 'system',
-    action_value: 'clock',
-    is_enabled: true,
-    is_custom: false,
-    created_at: new Date().toISOString(),
-  },
-];
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-function getWorkerProviderStatus(env: WorkerEnv): ProviderStatus {
-  return resolveActiveAiProvider({
-    preference: 'auto',
-    hasCloudflareBinding: Boolean(env.AI),
-    hasCloudflareRest: false,
-    hasGoogleAiKey: Boolean(env.GEMINI_API_KEY?.trim()),
-  });
-}
-
-export default {
-  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (url.pathname === '/api/health') {
-      return jsonResponse({
-        ok: true,
-        runtime: 'cloudflare-worker',
-        timestamp: new Date().toISOString(),
-        providerStatus: getWorkerProviderStatus(env),
-      });
-    }
-
-    if (url.pathname === '/api/state') {
-      return jsonResponse({
-        config: DEFAULT_WORKER_CONFIG,
-        skills: DEFAULT_WORKER_SKILLS,
-        memories: [],
-        notes: [],
-        reminders: [],
-        sessions: [],
-        providerStatus: getWorkerProviderStatus(env),
-      });
-    }
-
-    if (url.pathname === '/api/config' && request.method === 'PUT') {
-      const partial = (await request.json()) as Partial<AppConfig>;
-      return jsonResponse({
-        config: { ...DEFAULT_WORKER_CONFIG, ...partial },
-        providerStatus: getWorkerProviderStatus(env),
-      });
-    }
-
-    if (url.pathname === '/api/chat' && request.method === 'POST') {
-      try {
-        const { message, history = [] } = (await request.json()) as {
-          message?: string;
-          history?: Array<{ role: string; content: string }>;
-        };
-        const cleanMessage = (message ?? '').trim();
-        if (!cleanMessage) return jsonResponse({ error: 'Message cannot be empty.' }, 400);
-
-        const userLang: 'en' | 'ur' = detectUrduIntent(cleanMessage) ? 'ur' : 'en';
-        const extracted = extractMemoriesFromUtterance(cleanMessage);
-        const skillMatch = matchSkillCommand(cleanMessage, DEFAULT_WORKER_SKILLS);
-
-        if (skillMatch.matched && skillMatch.responseText) {
-          const payload: ChatApiResponse = {
-            reply: skillMatch.responseText,
-            emotion: detectEmotionFromText(skillMatch.responseText),
-            language: skillMatch.language ?? userLang,
-            modelUsed: 'skill-engine',
-            providerUsed: 'local-skill',
-            thinkingUsed: false,
-            skillExecuted: skillMatch.skillName,
-            sideEffect: skillMatch.sideEffect,
-            extractedMemories: extracted.map((m) => ({
-              category: m.category,
-              key: m.key,
-              value: m.value,
-            })),
-          };
-          return jsonResponse(payload);
-        }
-
-        const systemPrompt =
-          'You are NOVA, a poised, warm Pakistani female AI assistant fluent in Urdu (اردو), Roman Urdu, and English. Always begin your reply with exactly one emotion tag: [emotion:happy], [emotion:sad], [emotion:surprised], or [emotion:calm]. When addressed in Urdu or Roman Urdu, respond naturally in Urdu script (اردو) so speech pronunciation sounds authentic.';
-
-        // Automatically use Cloudflare Workers AI binding (`env.AI`) upon deployment!
-        if (env.AI) {
-          const model = env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-          const aiRes = (await env.AI.run(model, {
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...history.slice(-8).map((m) => ({
-                role: m.role === 'assistant' ? 'assistant' : 'user',
-                content: m.content,
-              })),
-              { role: 'user', content: cleanMessage },
-            ],
-          })) as { response?: string };
-
-          const rawText = aiRes?.response?.trim() || 'جی، میں آپ کی مدد کے لیے حاضر ہوں۔';
-          const parsed = extractEmotionAndCleanText(rawText);
-          const payload: ChatApiResponse = {
-            reply: parsed.cleanText,
-            emotion: parsed.emotion,
-            language: detectUrduIntent(parsed.cleanText) ? 'ur' : userLang,
-            modelUsed: model,
-            providerUsed: 'cloudflare-binding',
-            thinkingUsed: false,
-          };
-          return jsonResponse(payload);
-        }
-
-        // Fallback to Gemini REST if GEMINI_API_KEY secret is configured on Cloudflare
-        if (env.GEMINI_API_KEY?.trim()) {
-          const gemRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY.trim())}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: 'user', parts: [{ text: cleanMessage }] }],
-              }),
-            }
-          );
-          const gemData = (await gemRes.json()) as {
-            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-          };
-          const rawText =
-            gemData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-            'Assalamualaikum! How can I assist you?';
-          const parsed = extractEmotionAndCleanText(rawText);
-          return jsonResponse({
-            reply: parsed.cleanText,
-            emotion: parsed.emotion,
-            language: detectUrduIntent(parsed.cleanText) ? 'ur' : userLang,
-            modelUsed: 'gemini-api',
-            providerUsed: 'google-ai-studio',
-            thinkingUsed: false,
-          } satisfies ChatApiResponse);
-        }
-
-        return jsonResponse(
-          { error: 'Cloudflare Workers AI binding (env.AI) is not attached.' },
-          503
-        );
-      } catch (err) {
-        return jsonResponse(
-          { error: err instanceof Error ? err.message : 'Worker chat error' },
-          500
-        );
-      }
-    }
-
-    if (url.pathname === '/api/tts' && request.method === 'POST') {
-      const { text, language } = (await request.json()) as {
-        text?: string;
-        emotion?: FacialEmotion;
-        language?: 'en' | 'ur';
-      };
-      if (!text?.trim()) return jsonResponse({ error: 'Text is required.' }, 400);
-
-      const chunks = splitSpeechChunks(text.trim(), 165);
-      const audioChunks: Array<{ audioBase64: string; mimeType: string }> = [];
-
-      for (const chunk of chunks.slice(0, 8)) {
-        const hasUrdu = /[\u0600-\u06FF]/.test(chunk);
-        const tl = hasUrdu || language === 'ur' ? 'ur' : 'en';
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${tl}&client=tw-ob`;
-        const resp = await fetch(ttsUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        });
-        if (resp.ok) {
-          const bytes = new Uint8Array(await resp.arrayBuffer());
-          let bin = '';
-          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-          audioChunks.push({ audioBase64: btoa(bin), mimeType: 'audio/mpeg' });
-        }
-      }
-      return jsonResponse({ audioChunks, engine: 'urdu-neural-https' });
-    }
-
-    return env.ASSETS.fetch(request);
-  },
-};
+interface DB { prepare(sql:string): {bind(...v:unknown[]):any; all<T>():Promise<{results:T[]}>; first<T>():Promise<T|null>; run():Promise<unknown>}; }
+interface Env { DB:DB; AI?:{run(model:string,input:{messages:Array<{role:string;content:string}>}):Promise<{response?:string}>}; ASSETS:{fetch(r:Request):Promise<Response>}; GEMINI_API_KEY?:string; CLOUDFLARE_MODEL?:string; }
+const DEFAULT:AppConfig={assistant_name:'NOVA',personality:'friendly_professional',custom_prompt:'You are NOVA, a warm Pakistani assistant fluent in Urdu, Roman Urdu and English.',language:'bilingual',response_tone:'casual',tts_voice:'Kore',voice_speed:1,voice_volume:1,stt_model:'base',wake_word:'hey nova',wake_word_enabled:false,auto_speak:true,deep_thinking_mode:'auto',default_model:'gemini-2.5-flash' as AppConfig['default_model'],ai_provider:'auto'};
+const json=(x:unknown,s=200)=>Response.json(x,{status:s,headers:{'Cache-Control':'no-store'}});
+const all=async<T>(db:DB,q:string,...v:unknown[]) => (await db.prepare(q).bind(...v).all<T>()).results;
+const one=async<T>(db:DB,q:string,...v:unknown[]) => db.prepare(q).bind(...v).first<T>();
+const exec=async(db:DB,q:string,...v:unknown[])=>db.prepare(q).bind(...v).run();
+const arr=(v:string)=>{try{const x=JSON.parse(v);return Array.isArray(x)?x:[]}catch{return[]}};
+async function getConfig(db:DB):Promise<AppConfig>{const r=await all<{key:string;value:string}>(db,'SELECT key,value FROM app_config');const m=new Map(r.map(x=>[x.key,x.value]));return {...DEFAULT,...Object.fromEntries([...m].map(([k,v])=>[k,v]))} as AppConfig;}
+async function getState(db:DB,env:Env){const [cfg,skills,memories,notes,reminders,sessions]=await Promise.all([getConfig(db),all<any>(db,'SELECT * FROM skills_config ORDER BY is_custom DESC,id'),all<any>(db,'SELECT * FROM memories WHERE is_deleted=0 ORDER BY id DESC'),all<any>(db,'SELECT * FROM notes ORDER BY id DESC'),all<any>(db,'SELECT * FROM reminders ORDER BY is_done,id DESC'),all<any>(db,`SELECT session_id,MIN(timestamp) started_at,MAX(timestamp) last_message_at,COUNT(*) message_count,(SELECT content FROM conversations c2 WHERE c2.session_id=c1.session_id ORDER BY id LIMIT 1) preview,(SELECT language FROM conversations c3 WHERE c3.session_id=c1.session_id ORDER BY id DESC LIMIT 1) primary_language FROM conversations c1 GROUP BY session_id ORDER BY MAX(id) DESC`)]);for(const x of skills){x.trigger_phrases=arr(x.trigger_phrases);x.is_enabled=!!x.is_enabled;x.is_custom=!!x.is_custom;}for(const x of notes)x.tags=arr(x.tags);for(const x of reminders)x.is_done=!!x.is_done;const providerStatus:ProviderStatus=resolveActiveAiProvider({preference:cfg.ai_provider,hasCloudflareBinding:!!env.AI,hasCloudflareRest:false,hasGoogleAiKey:!!env.GEMINI_API_KEY});return {config:cfg,skills,memories,notes,reminders,sessions,providerStatus};}
+async function save(db:DB,s:any){await exec(db,'INSERT INTO conversations(session_id,role,content,language,emotion,model_used,provider_used,thinking_used,skill_executed) VALUES(?,?,?,?,?,?,?,?,?)',s.sessionId,s.role,s.content,s.language,s.emotion||'calm',s.modelUsed||null,s.providerUsed||null,s.thinkingUsed?1:0,s.skillExecuted||null);}
+async function chat(request:Request,env:Env){const b=await request.json() as any,msg=String(b.message||'').trim();if(!msg||msg.length>12000)return json({error:'Message must be 1–12,000 characters.'},400);const db=env.DB,cfg=await getConfig(db),sessionId=String(b.sessionId||crypto.randomUUID()).slice(0,120),lang=detectUrduIntent(msg)?'ur':'en';await save(db,{sessionId,role:'user',content:msg,language:lang,emotion:detectEmotionFromText(msg)});const extracted=extractMemoriesFromUtterance(msg);for(const m of extracted){const found=await one<any>(db,'SELECT id FROM memories WHERE is_deleted=0 AND LOWER(value)=LOWER(?)',m.value);if(!found)await exec(db,'INSERT INTO memories(category,key,value,source,confidence) VALUES(?,?,?,?,?)',m.category,m.key,m.value,m.source,m.confidence);}
+const sk=await all<any>(db,'SELECT * FROM skills_config WHERE is_enabled=1');for(const x of sk)x.trigger_phrases=arr(x.trigger_phrases);const match=matchSkillCommand(msg,sk as any);if(match.matched&&match.responseText){const side=match.sideEffect;if(side?.type==='create_note'&&side.noteContent)await exec(db,'INSERT INTO notes(title,content,tags) VALUES(?,?,?)',side.noteTitle||'Quick Note',side.noteContent,'["voice"]');if(side?.type==='create_reminder'&&side.reminderTitle)await exec(db,'INSERT INTO reminders(title,remind_at) VALUES(?,?)',side.reminderTitle,side.reminderAt||'Today');const emotion=match.emotion||detectEmotionFromText(match.responseText);await save(db,{sessionId,role:'assistant',content:match.responseText,language:match.language||lang,emotion,modelUsed:'skill-engine',providerUsed:'local-skill',skillExecuted:match.skillName});return json({reply:match.responseText,emotion,language:match.language||lang,modelUsed:'skill-engine',providerUsed:'local-skill',thinkingUsed:false,skillExecuted:match.skillName,sideEffect:side,extractedMemories:extracted} satisfies ChatApiResponse);}
+const history=await all<any>(db,'SELECT role,content FROM conversations WHERE session_id=? ORDER BY id DESC LIMIT 12',sessionId);history.reverse();history.pop();const memories=await all<any>(db,'SELECT value FROM memories WHERE is_deleted=0 ORDER BY id DESC LIMIT 20'),notes=await all<any>(db,'SELECT title,content FROM notes ORDER BY id DESC LIMIT 8'),reminders=await all<any>(db,'SELECT title,remind_at FROM reminders WHERE is_done=0 ORDER BY id DESC LIMIT 10');const prompt=[cfg.custom_prompt,'You are NOVA, warm Pakistani bilingual Urdu/Roman Urdu/English assistant. Match user language and respond naturally. Begin with one emotion tag [emotion:happy], [emotion:sad], [emotion:surprised], or [emotion:calm].','Memories:',...memories.map(x=>x.value),'Notes:',...notes.map(x=>(x.title||'Note')+': '+x.content),'Reminders:',...reminders.map(x=>x.title+' '+x.remind_at)].join('\n');let raw='',model='',provider='',thinking=false;
+if(env.AI){model=env.CLOUDFLARE_MODEL||'@cf/meta/llama-3.3-70b-instruct-fp8-fast';provider='cloudflare-binding';const out=await env.AI.run(model,{messages:[{role:'system',content:prompt},...history.map(x=>({role:x.role==='assistant'?'assistant':'user',content:x.content})),{role:'user',content:msg}]});raw=out.response||'';}
+else if(env.GEMINI_API_KEY){thinking=!!b.forceThinking||cfg.deep_thinking_mode==='always'||(cfg.deep_thinking_mode==='auto'&&isComplexThinkingQuery(msg));model=thinking?'gemini-2.5-pro':'gemini-2.5-flash';provider='google-ai-studio';const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:prompt}]},contents:[...history.map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]})),{role:'user',parts:[{text:msg}]}]})});const d=await r.json() as any;if(!r.ok)throw new Error(d.error?.message||'Gemini request failed');raw=d.candidates?.[0]?.content?.parts?.map((x:any)=>x.text||'').join('')||'';}
+else return json({error:'Configure Workers AI binding or GEMINI_API_KEY.'},503);
+if(!raw.trim())throw new Error('AI provider returned an empty response');const parsed=extractEmotionAndCleanText(raw),language=detectUrduIntent(parsed.cleanText)?'ur':lang;await save(db,{sessionId,role:'assistant',content:parsed.cleanText,language,emotion:parsed.emotion,modelUsed:model,providerUsed:provider,thinkingUsed:thinking});return json({reply:parsed.cleanText,emotion:parsed.emotion,language,modelUsed:model,providerUsed:provider,thinkingUsed:thinking,extractedMemories:extracted} satisfies ChatApiResponse);}
+export default {async fetch(request:Request,env:Env){const u=new URL(request.url),p=u.pathname,m=request.method,db=env.DB;if(p==='/api/health')return json({ok:true,runtime:'cloudflare-worker',timestamp:new Date().toISOString(),database:'D1'});try{
+if(p==='/api/state'&&m==='GET')return json(await getState(db,env));
+if(p==='/api/chat'&&m==='POST')return await chat(request,env);
+if(p==='/api/config'&&m==='PUT'){const b=await request.json() as Record<string,unknown>;const allowed=new Set(Object.keys(DEFAULT));for(const [k,v] of Object.entries(b))if(allowed.has(k)&&v!==undefined)await exec(db,'INSERT INTO app_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP',k,String(v));return json({config:await getConfig(db)});}
+const c=p.match(/^\/api\/conversations\/([^/]+)$/);if(c&&m==='GET')return json({messages:await all(db,'SELECT id,session_id sessionId,role,content,language,emotion,timestamp,model_used modelUsed,provider_used providerUsed,thinking_used thinkingUsed,skill_executed skillExecuted FROM conversations WHERE session_id=? ORDER BY id',decodeURIComponent(c[1]))});if(c&&m==='DELETE'){await exec(db,'DELETE FROM conversations WHERE session_id=?',decodeURIComponent(c[1]));return json({ok:true});}
+if(p==='/api/memories'&&m==='POST'){const b=await request.json() as any;if(!b.value?.trim())return json({error:'Memory value required'},400);await exec(db,'INSERT INTO memories(category,key,value,source,confidence) VALUES(?,?,?,?,1)',b.category||'fact',b.key||'manual_entry',b.value.trim(),'manual');return json({memories:await all(db,'SELECT * FROM memories WHERE is_deleted=0 ORDER BY id DESC')});}if(p==='/api/memories'&&m==='DELETE'){await exec(db,'UPDATE memories SET is_deleted=1');return json({ok:true,memories:[]});}const mi=p.match(/^\/api\/memories\/(\d+)$/);if(mi&&m==='DELETE'){await exec(db,'UPDATE memories SET is_deleted=1 WHERE id=?',+mi[1]);return json({ok:true});}
+if(p==='/api/notes'&&m==='POST'){const b=await request.json() as any;if(!b.content?.trim())return json({error:'Note content required'},400);await exec(db,'INSERT INTO notes(title,content,tags) VALUES(?,?,?)',b.title||'Quick Note',b.content,JSON.stringify(b.tags||[]));return json({notes:await all(db,'SELECT * FROM notes ORDER BY id DESC')});}const ni=p.match(/^\/api\/notes\/(\d+)$/);if(ni&&m==='DELETE'){await exec(db,'DELETE FROM notes WHERE id=?',+ni[1]);return json({ok:true});}
+if(p==='/api/reminders'&&m==='POST'){const b=await request.json() as any;if(!b.title?.trim())return json({error:'Reminder title required'},400);await exec(db,'INSERT INTO reminders(title,remind_at) VALUES(?,?)',b.title,b.remind_at||'Today');return json({reminders:await all(db,'SELECT * FROM reminders ORDER BY id DESC')});}const ri=p.match(/^\/api\/reminders\/(\d+)$/);if(ri&&m==='PATCH'){const b=await request.json() as any;await exec(db,'UPDATE reminders SET is_done=? WHERE id=?',b.is_done?1:0,+ri[1]);return json({ok:true});}if(ri&&m==='DELETE'){await exec(db,'DELETE FROM reminders WHERE id=?',+ri[1]);return json({ok:true});}
+if(p==='/api/skills'&&m==='POST'){const b=await request.json() as any;if(!b.display_name||!Array.isArray(b.trigger_phrases)||!b.trigger_phrases.length)return json({error:'Skill name and triggers required'},400);await exec(db,'INSERT INTO skills_config(skill_name,display_name,description,trigger_phrases,action_type,action_value,is_custom) VALUES(?,?,?,?,?,?,1)',b.display_name.toLowerCase().replace(/[^a-z0-9]+/g,'_')+'_'+crypto.randomUUID().slice(0,6),b.display_name,b.description||'',JSON.stringify(b.trigger_phrases),b.action_type||'url',b.action_value||'');return json({skills:await all(db,'SELECT * FROM skills_config')});}const si=p.match(/^\/api\/skills\/(\d+)$/);if(si&&m==='PATCH'){const b=await request.json() as any;await exec(db,'UPDATE skills_config SET is_enabled=? WHERE id=?',b.is_enabled?1:0,+si[1]);return json({ok:true});}if(si&&m==='DELETE'){await exec(db,'DELETE FROM skills_config WHERE id=? AND is_custom=1',+si[1]);return json({ok:true});}
+if(p==='/api/tts'&&m==='POST'){const b=await request.json() as any;if(!b.text?.trim()||b.text.length>4000)return json({error:'Text required (max 4000 chars)'},400);const audioChunks=[];for(const chunk of splitSpeechChunks(b.text,165).slice(0,8)){const tl=/[\u0600-\u06FF]/.test(chunk)||b.language==='ur'?'ur':'en';const r=await fetch('https://translate.google.com/translate_tts?ie=UTF-8&q='+encodeURIComponent(chunk)+'&tl='+tl+'&client=tw-ob',{headers:{'User-Agent':'Mozilla/5.0'}});if(r.ok){const bytes=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);audioChunks.push({audioBase64:btoa(s),mimeType:'audio/mpeg'});}}return json({audioChunks,engine:'urdu-neural-https'});}
+if(p.startsWith('/api/'))return json({error:'Not found'},404);return env.ASSETS.fetch(request);
+}catch(e){console.error(JSON.stringify({path:p,error:e instanceof Error?e.message:'unknown'}));return json({error:e instanceof Error?e.message:'Internal server error'},500);}}};
