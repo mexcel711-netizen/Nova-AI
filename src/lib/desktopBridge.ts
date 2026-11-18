@@ -1,4 +1,4 @@
-const TOKEN_KEY = 'nova-desktop-bridge-token';
+export const TOKEN_KEY = 'nova-desktop-bridge-token';
 
 export function getDesktopBridgeToken(): string {
   try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
