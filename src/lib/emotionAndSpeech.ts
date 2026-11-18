@@ -2,7 +2,7 @@ import type { AiProviderPreference, FacialEmotion, ProviderStatus } from '../typ
 
 /**
  * Classifies facial expression from bilingual English, Urdu, and Roman Urdu text.
- * Also supports optional explicit `[emotion:happy|sad|surprised|calm]` tag stripping.
+ * Also supports optional explicit `[emotion:happy|sad|surprised|calm|excited|empathetic|thoughtful|confident|angry|curious]` tag stripping.
  */
 export function extractEmotionAndCleanText(rawText: string): {
   cleanText: string;
@@ -24,34 +24,18 @@ export function extractEmotionAndCleanText(rawText: string): {
 
 export function detectEmotionFromText(text: string): FacialEmotion {
   const lower = text.toLowerCase();
-
-  const surprisedPatterns = [
-    /\b(wow|whoa|amazing|incredible|unbelievable|shocking|really\?!|seriously\?|what a surprise)\b/i,
-    /\b(hairan|kamaal|wah|arey wah|sach mein)\b/i,
-    /(حیران|کمال|واہ|سچ میں)/,
-    /!{2,}|\?!/,
+  const rules: Array<{ emotion: FacialEmotion; patterns: RegExp[] }> = [
+    { emotion: 'excited', patterns: [/\\b(can't wait|so excited|fantastic|let's go|amazing news|woohoo)\\b/i, /\\b(zabardast|bohat khoob|kya baat)\\b/i] },
+    { emotion: 'empathetic', patterns: [/\\b(i understand|that sounds hard|i'm here for you|my heart goes out|take your time)\\b/i, /\\b(samajh sakti|fikr na karein|main saath hoon)\\b/i] },
+    { emotion: 'thoughtful', patterns: [/\\b(let me think|consider|on reflection|perhaps|it depends|here's why)\\b/i, /\\b(ghor karte|sochti hoon|aaiye samjhein)\\b/i] },
+    { emotion: 'confident', patterns: [/\\b(absolutely|certainly|definitely|you can count on me|i've got this)\\b/i, /\\b(bilkul|yaqeenan|zaroor|main kar sakti hoon)\\b/i] },
+    { emotion: 'angry', patterns: [/\\b(unacceptable|furious|outrageous|that's not okay)\\b/i, /\\b(na-insafi|ghalat baat|bardasht nahi)\\b/i] },
+    { emotion: 'curious', patterns: [/\\b(i wonder|interesting question|curious|let's explore|tell me more)\\b/i, /\\b(dilchasp|mazeed bataiye|jaanna chahti)\\b/i] },
+    { emotion: 'surprised', patterns: [/\\b(wow|whoa|incredible|unbelievable|shocking|really\\?!|seriously\\?|what a surprise)\\b/i, /\\b(hairan|kamaal|wah|arey wah|sach mein)\\b/i, /(حیران|کمال|واہ|سچ میں)/, /!{2,}|\\?!/] },
+    { emotion: 'sad', patterns: [/\\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\\b/i, /\\b(afsos|maaf|maazrat|udaas|dukh|gham|pareshan|mushkil)\\b/i, /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/] },
+    { emotion: 'happy', patterns: [/\\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|love|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\\b/i, /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/] },
   ];
-  if (surprisedPatterns.some((re) => re.test(text))) {
-    return 'surprised';
-  }
-
-  const sadPatterns = [
-    /\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\b/i,
-    /\b(afsos|maaf|maazrat|udaas|dukh|ggham|pareshan|mushkil)\b/i,
-    /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/,
-  ];
-  if (sadPatterns.some((re) => re.test(lower))) {
-    return 'sad';
-  }
-
-  const happyPatterns = [
-    /\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|love|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\b/i,
-    /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/,
-  ];
-  if (happyPatterns.some((re) => re.test(lower))) {
-    return 'happy';
-  }
-
+  for (const rule of rules) if (rule.patterns.some((pattern) => pattern.test(lower))) return rule.emotion;
   return 'calm';
 }
 
@@ -122,14 +106,18 @@ export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotio
   const chunks = splitSpeechChunks(text, 220);
   const textWithBreaths = chunks.join(' <breath> ');
 
-  const emotionStyle =
-    emotion === 'happy'
-      ? 'Warm, cheerful, smiling Pakistani female voice with gentle enthusiasm.'
-      : emotion === 'sad'
-        ? 'Soft, empathetic, gentle Pakistani female voice with caring warmth.'
-        : emotion === 'surprised'
-          ? 'Expressive, bright, intrigued Pakistani female voice with lively inflection.'
-          : 'Calm, composed, soothing Pakistani female voice with poised warmth.';
+  const emotionStyle: Record<FacialEmotion, string> = {
+    calm: 'Calm, composed, soothing Pakistani female voice with poised warmth.',
+    happy: 'Warm, cheerful, smiling Pakistani female voice with gentle enthusiasm.',
+    excited: 'Bright, energetic, delighted Pakistani female voice with lively but natural inflection.',
+    sad: 'Soft, tender Pakistani female voice with gentle sadness and unhurried pacing.',
+    empathetic: 'Deeply caring, reassuring Pakistani female voice with compassionate warmth.',
+    thoughtful: 'Reflective, measured Pakistani female voice with thoughtful pauses and gentle curiosity.',
+    confident: 'Clear, assured Pakistani female voice with steady, composed authority.',
+    angry: 'Firm, controlled Pakistani female voice expressing displeasure without shouting.',
+    surprised: 'Expressive, bright, intrigued Pakistani female voice with lively inflection.',
+    curious: 'Engaged, inquisitive Pakistani female voice with an inviting upward lilt.',
+  }[emotion] || 'Calm, composed, soothing Pakistani female voice with poised warmth.';
 
   const styleInstruction = `${emotionStyle} Speak fluent Urdu with an authentic Pakistani accent and clear natural English when mixing languages. Maintain natural human speech rhythm and subtle breathing pauses.`;
 
