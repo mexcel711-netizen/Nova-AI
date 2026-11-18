@@ -9,7 +9,7 @@ export function extractEmotionAndCleanText(rawText: string): {
   emotion: FacialEmotion;
 } {
   let cleanText = rawText.trim();
-  const tagMatch = cleanText.match(/^\[emotion:(happy|sad|surprised|calm)\]\s*/i);
+  const tagMatch = cleanText.match(/^\[emotion:(happy|sad|surprised|calm|excited|empathetic|thoughtful|confident|angry|curious)\]\s*/i);
   if (tagMatch) {
     const tagged = tagMatch[1].toLowerCase() as FacialEmotion;
     cleanText = cleanText.slice(tagMatch[0].length).trim();
