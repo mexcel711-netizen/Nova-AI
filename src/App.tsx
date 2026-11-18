@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { CharacterView } from './components/views/CharacterView';
 import { HomeView } from './components/views/HomeView';
-import { runDesktopApp } from './lib/desktopBridge';
+import { executeDesktopCommand } from './lib/desktopIntent';
 import { MemoryView } from './components/views/MemoryView';
 import { RecentView } from './components/views/RecentView';
 import { SettingsView } from './components/views/SettingsView';
@@ -270,29 +270,27 @@ export default function App() {
       chatAbortRef.current = controller;
 
       try {
-        const desktopMatch = text.match(/^(?:please\\s+)?(?:(?:open|launch)\\s+)?(?:google\\s+)?(chrome|edge|notepad|calculator)(?:\\s+(?:kholo|open(?:\\s+karo)?|launch(?:\\s+karo)?))?$/i);
-        if (desktopMatch) {
-          const app = desktopMatch[1].toLowerCase();
-          await runDesktopApp(app);
-          const reply = `${app[0].toUpperCase() + app.slice(1)} launch kar diya hai.`;
+        const desktopAction = await executeDesktopCommand(text);
+        if (desktopAction) {
+          const reply = desktopAction.reply;
           const assistantMsg: ChatMessage = {
             id: `assistant-${Date.now()}`,
             sessionId,
             role: 'assistant',
             content: reply,
-            emotion: 'happy',
+            emotion: desktopAction.emotion,
             language: 'ur',
             timestamp: new Date().toISOString(),
             modelUsed: 'desktop-companion',
             providerUsed: 'local-desktop',
             thinkingUsed: false,
-            skillExecuted: 'desktop_launch',
+            skillExecuted: 'desktop_command',
           };
           setMessages((prev) => [...prev, assistantMsg]);
           setIsSending(false);
           chatAbortRef.current = null;
-          setAvatarEmotion('happy');
-          if (config.auto_speak) await speakWithLipSync(reply, 'ur', 'happy');
+          setAvatarEmotion(desktopAction.emotion);
+          if (config.auto_speak) await speakWithLipSync(reply, 'ur', desktopAction.emotion);
           else setAvatarState('idle');
           return;
         }
