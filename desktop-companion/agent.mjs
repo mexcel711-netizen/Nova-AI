@@ -54,8 +54,9 @@ function launchApp(app) {
   if (app === 'chrome') { launchChrome(); return; }
   if (app === 'explorer' || app === 'task-manager' || app === 'settings') {
     if (process.platform === 'win32') {
-      const command = app === 'explorer' ? 'explorer.exe' : app === 'task-manager' ? 'taskmgr.exe' : 'ms-settings:';
-      const child = spawn(command, [], { detached: true, stdio: 'ignore', windowsHide: true }); child.unref(); return;
+      const command = app === 'task-manager' ? 'taskmgr.exe' : 'explorer.exe';
+      const args = app === 'settings' ? ['ms-settings:'] : [];
+      const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }); child.unref(); return;
     }
     if (app === 'settings') throw new Error('Settings shortcut is currently Windows-only.');
     const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [app === 'explorer' ? homedir() : 'htop'], { detached: true, stdio: 'ignore' }); child.unref(); return;
