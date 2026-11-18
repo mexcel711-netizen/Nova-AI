@@ -3,7 +3,8 @@ import { extractMemoriesFromUtterance } from '../src/lib/memoryExtractor';
 import { detectUrduIntent, isComplexThinkingQuery, matchSkillCommand } from '../src/lib/skillMatcher';
 import type { AppConfig, ChatApiResponse, ProviderStatus } from '../src/types/nova';
 
-interface D1Statement { bind(...v:unknown[]):D1Statement; all<T>():Promise<{results:T[]}>; first<T>():Promise<T|null>; run():Promise<unknown>; }\ninterface DB { prepare(sql:string):D1Statement; }
+interface D1Statement { bind(...v:unknown[]):D1Statement; all<T>():Promise<{results:T[]}>; first<T>():Promise<T|null>; run():Promise<unknown>; }
+interface DB { prepare(sql:string):D1Statement; }
 interface Env { DB:DB; AI?:{run(model:string,input:{messages:Array<{role:string;content:string}>}):Promise<{response?:string}>}; ASSETS:{fetch(r:Request):Promise<Response>}; GEMINI_API_KEY?:string; CLOUDFLARE_MODEL?:string; }
 const DEFAULT:AppConfig={assistant_name:'NOVA',personality:'friendly_professional',custom_prompt:'You are NOVA, a warm Pakistani assistant fluent in Urdu, Roman Urdu and English.',language:'bilingual',response_tone:'casual',tts_voice:'Kore',voice_speed:1,voice_volume:1,stt_model:'base',wake_word:'hey nova',wake_word_enabled:false,auto_speak:true,deep_thinking_mode:'auto',default_model:'gemini-2.5-flash' as AppConfig['default_model'],ai_provider:'auto'};
 const json=(x:unknown,s=200)=>Response.json(x,{status:s,headers:{'Cache-Control':'no-store'}});
