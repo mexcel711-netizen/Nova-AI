@@ -22,6 +22,7 @@ function send(res, status, body, origin) {
     'Access-Control-Allow-Origin': origin || 'null',
     'Vary': 'Origin',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Private-Network': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   });
   res.end(JSON.stringify(body));
@@ -34,35 +35,36 @@ function authorized(req) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function getChromeExecutable() {
+  if (process.platform !== 'win32') return 'google-chrome';
+  const roots = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean);
+  return roots.flatMap((root) => [join(root, 'Google/Chrome/Application/chrome.exe'), join(root, 'Chromium/Application/chrome.exe')]).find(existsSync) || 'chrome.exe';
+}
+function launchChrome(args = []) {
+  const child = spawn(getChromeExecutable(), args, { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+}
+function safeWebUrl(value) {
+  const target = new URL(String(value || ''));
+  if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) throw new Error('Only safe HTTP/HTTPS web addresses are allowed.');
+  return target.href;
+}
 function launchApp(app) {
+  if (app === 'chrome') { launchChrome(); return; }
   if (process.platform === 'win32') {
     const roots = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean);
-    const candidates = app === 'chrome'
-      ? roots.flatMap((root) => [join(root, 'Google/Chrome/Application/chrome.exe'), join(root, 'Chromium/Application/chrome.exe')])
-      : app === 'edge'
-        ? roots.flatMap((root) => [join(root, 'Microsoft/Edge/Application/msedge.exe')])
-        : app === 'notepad'
-          ? [join(process.env.WINDIR || 'C:/Windows', 'System32/notepad.exe')]
-          : app === 'calculator'
-            ? [join(process.env.WINDIR || 'C:/Windows', 'System32/calc.exe')]
-            : [];
-    const executable = candidates.find(existsSync);
-    if (executable) {
-      const child = spawn(executable, [], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.unref();
-      return;
-    }
-    if (app === 'chrome' || app === 'edge') {
-      const child = spawn('cmd.exe', ['/c', 'start', '', app], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.unref();
-      return;
-    }
-    throw new Error('App not found on this Windows installation.');
+    const candidates = app === 'edge'
+      ? roots.map((root) => join(root, 'Microsoft/Edge/Application/msedge.exe'))
+      : app === 'notepad'
+        ? [join(process.env.WINDIR || 'C:/Windows', 'System32/notepad.exe')]
+        : app === 'calculator'
+          ? [join(process.env.WINDIR || 'C:/Windows', 'System32/calc.exe')]
+          : [];
+    const executable = candidates.find(existsSync) || (app === 'edge' ? 'msedge.exe' : undefined);
+    if (!executable) throw new Error('App not found on this Windows installation.');
+    const child = spawn(executable, [], { detached: true, stdio: 'ignore', windowsHide: true }); child.unref(); return;
   }
-  const command = process.platform === 'darwin' ? 'open' : 'xdg-open';
-  const target = app === 'chrome' ? 'https://www.google.com/chrome/' : app === 'edge' ? 'https://www.microsoft.com/edge' : app;
-  const child = spawn(command, [target], { detached: true, stdio: 'ignore' });
-  child.unref();
+  const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [app], { detached: true, stdio: 'ignore' }); child.unref();
 }
 
 const server = createServer(async (req, res) => {
@@ -76,7 +78,7 @@ const server = createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
   if (req.method === 'GET' && url.pathname === '/v1/health') {
-    return send(res, 200, { ok: true, platform: process.platform, capabilities: ['chrome', 'edge', 'notepad', 'calculator', 'urdu-neural-tts'] }, origin);
+    return send(res, 200, { ok: true, platform: process.platform, capabilities: ['chrome', 'chrome-new-tab', 'chrome-search', 'edge', 'notepad', 'calculator', 'urdu-neural-tts'] }, origin);
   }
   if (req.method !== 'POST') return send(res, 404, { error: 'Not found' }, origin);
 
@@ -95,23 +97,37 @@ const server = createServer(async (req, res) => {
       launchApp(app);
       return send(res, 200, { ok: true, action: 'launch', app }, origin);
     }
+    if (url.pathname === '/v1/chrome/new-tab') {
+      const target = body.url ? safeWebUrl(body.url) : 'chrome://newtab';
+      launchChrome(['--new-tab', target]);
+      return send(res, 200, { ok: true, action: 'chrome-new-tab', url: target }, origin);
+    }
+    if (url.pathname === '/v1/chrome/search') {
+      const query = String(body.query || '').trim().slice(0, 300);
+      if (!query) return send(res, 400, { error: 'Search query is required.' }, origin);
+      const target = 'https://www.google.com/search?q=' + encodeURIComponent(query);
+      launchChrome(['--new-tab', target]);
+      return send(res, 200, { ok: true, action: 'chrome-search', url: target }, origin);
+    }
     if (url.pathname === '/v1/open-url') {
-      const target = new URL(String(body.url || ''));
-      if (!['http:', 'https:'].includes(target.protocol) || /["'&|<>^%\n\r]/.test(target.href)) return send(res, 400, { error: 'Only safe HTTP/HTTPS URLs are allowed.' }, origin);
-      if (process.platform === 'win32') {
-        const child = spawn('cmd.exe', ['/c', 'start', '', target.href], { detached: true, stdio: 'ignore', windowsHide: true });
-        child.unref();
-      } else {
-        const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target.href], { detached: true, stdio: 'ignore' });
-        child.unref();
-      }
-      return send(res, 200, { ok: true, action: 'open-url', url: target.href }, origin);
+      const target = safeWebUrl(body.url);
+      if (process.platform === 'win32') launchChrome(['--new-tab', target]);
+      else { const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [target], { detached: true, stdio: 'ignore' }); child.unref(); }
+      return send(res, 200, { ok: true, action: 'open-url', url: target }, origin);
     }
     if (url.pathname === '/v1/tts') {
       const text = String(body.text || '').trim();
       if (!text || text.length > 2500) return send(res, 400, { error: 'Text must be between 1 and 2500 characters.' }, origin);
       const voice = VOICES.has(body.voice) ? body.voice : (/^[\u0000-\u007f]*$/.test(text) ? 'en-US-JennyNeural' : 'ur-PK-UzmaNeural');
-      const tts = new UniversalEdgeTTS(text, voice);
+      const emotion = String(body.emotion || 'calm').toLowerCase();
+      const prosody = {
+        happy: { rate: '+5%', pitch: '+8Hz' }, excited: { rate: '+11%', pitch: '+12Hz' },
+        sad: { rate: '-9%', pitch: '-7Hz' }, empathetic: { rate: '-4%', pitch: '+2Hz' },
+        thoughtful: { rate: '-7%', pitch: '-3Hz' }, confident: { rate: '+2%', pitch: '+3Hz' },
+        calm: { rate: '-2%', pitch: '+0Hz' }, angry: { rate: '+3%', pitch: '-2Hz' },
+        surprised: { rate: '+8%', pitch: '+10Hz' },
+      }[emotion] || { rate: '+0%', pitch: '+0Hz' };
+      const tts = new UniversalEdgeTTS(text, voice, { ...prosody, volume: '+0%' });
       const result = await tts.synthesize();
       const audioBase64 = Buffer.from(await result.audio.arrayBuffer()).toString('base64');
       return send(res, 200, { audioChunks: [{ audioBase64, mimeType: 'audio/mpeg' }], engine: 'microsoft-edge-neural', voice }, origin);
