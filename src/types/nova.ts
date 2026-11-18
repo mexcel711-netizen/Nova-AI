@@ -1,6 +1,6 @@
 export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
-export type FacialEmotion = 'calm' | 'happy' | 'sad' | 'surprised';
+export type FacialEmotion = 'calm' | 'happy' | 'sad' | 'surprised' | 'excited' | 'empathetic' | 'thoughtful' | 'confident' | 'angry' | 'curious';
 
 export type SidebarPage =
   | 'home'
