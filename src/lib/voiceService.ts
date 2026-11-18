@@ -1,4 +1,5 @@
 import type { FacialEmotion } from '../types/nova';
+import { getDesktopBridgeToken } from './desktopBridge';
 
 // Client-side neural audio playback (Web Audio API with real-time FFT lip-sync),
 // speed/volume controls, and SpeechRecognition helpers.
@@ -76,6 +77,49 @@ export async function speakText(params: {
   let engineUsed = 'urdu-neural-https';
 
   try {
+    // When paired, prefer Microsoft Edge neural voices locally (Pakistani Urdu Uzma).
+    const desktopToken = getDesktopBridgeToken();
+    if (desktopToken) {
+      try {
+        const localResponse = await fetch('http://127.0.0.1:3210/v1/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${desktopToken}` },
+          body: JSON.stringify({
+            text: cleanText.slice(0, 2500),
+            voice: params.language === 'ur' ? 'ur-PK-UzmaNeural' : 'en-US-JennyNeural',
+          }),
+          signal: controller.signal,
+        });
+        if (localResponse.ok) {
+          const localData = await localResponse.json() as {
+            audioChunks?: Array<{ audioBase64: string; mimeType: string }>;
+            engine?: string;
+          };
+          if (localData.audioChunks?.length) {
+            engineUsed = localData.engine || 'microsoft-edge-neural';
+            const speed = Math.min(1.6, Math.max(0.65, params.voiceSpeed ?? 1));
+            const volume = Math.min(1.5, Math.max(0, params.voiceVolume ?? 1));
+            for (const chunk of localData.audioChunks) {
+              if (controller.signal.aborted) break;
+              await playBufferWithLipSync({
+                base64: chunk.audioBase64,
+                speed,
+                volume,
+                signal: controller.signal,
+                onLipSync: params.onLipSync,
+              });
+            }
+            params.onLipSync?.(0, 0);
+            params.onEnd?.();
+            return { engine: engineUsed };
+          }
+        }
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        // Continue with hosted TTS if the desktop companion is offline.
+      }
+    }
+
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
