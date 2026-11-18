@@ -2,7 +2,7 @@ import { openChromeNewTab, runDesktopApp, searchInChrome } from './desktopBridge
 
 export async function executeDesktopCommand(raw: string): Promise<{ reply: string; emotion: 'happy' | 'excited' } | null> {
   const command = raw.trim().toLowerCase().replace(/[!?.,]/g, ' ').replace(/\\s+/g, ' ');
-  const newTab = /^(?:(?:google )?chrome(?: (?:mein|ka))? )?(?:new|naya) tab(?: (?:kholo|open(?: karo)?))?$/.test(command);
+  const newTab = /^(?:(?:google )?chrome(?: (?:mein|ka|ke))? )?(?:new|naya) tab(?: (?:kholo|open(?: karo)?))?$/.test(command);
   if (newTab) {
     await openChromeNewTab();
     return { reply: 'Ji, Chrome mein naya tab khol diya hai.', emotion: 'happy' };
