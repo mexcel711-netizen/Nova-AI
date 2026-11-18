@@ -25,15 +25,15 @@ export function extractEmotionAndCleanText(rawText: string): {
 export function detectEmotionFromText(text: string): FacialEmotion {
   const lower = text.toLowerCase();
   const rules: Array<{ emotion: FacialEmotion; patterns: RegExp[] }> = [
-    { emotion: 'excited', patterns: [/\\b(can't wait|so excited|fantastic|let's go|amazing news|woohoo)\\b/i, /\\b(zabardast|bohat khoob|kya baat)\\b/i] },
-    { emotion: 'empathetic', patterns: [/\\b(i understand|that sounds hard|i'm here for you|my heart goes out|take your time)\\b/i, /\\b(samajh sakti|fikr na karein|main saath hoon)\\b/i] },
-    { emotion: 'thoughtful', patterns: [/\\b(let me think|consider|on reflection|perhaps|it depends|here's why)\\b/i, /\\b(ghor karte|sochti hoon|aaiye samjhein)\\b/i] },
-    { emotion: 'confident', patterns: [/\\b(absolutely|certainly|definitely|you can count on me|i've got this)\\b/i, /\\b(bilkul|yaqeenan|zaroor|main kar sakti hoon)\\b/i] },
-    { emotion: 'angry', patterns: [/\\b(unacceptable|furious|outrageous|that's not okay)\\b/i, /\\b(na-insafi|ghalat baat|bardasht nahi)\\b/i] },
-    { emotion: 'curious', patterns: [/\\b(i wonder|interesting question|curious|let's explore|tell me more)\\b/i, /\\b(dilchasp|mazeed bataiye|jaanna chahti)\\b/i] },
-    { emotion: 'surprised', patterns: [/\\b(wow|whoa|incredible|unbelievable|shocking|really\\?!|seriously\\?|what a surprise)\\b/i, /\\b(hairan|kamaal|wah|arey wah|sach mein)\\b/i, /(حیران|کمال|واہ|سچ میں)/, /!{2,}|\\?!/] },
-    { emotion: 'sad', patterns: [/\\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\\b/i, /\\b(afsos|maaf|maazrat|udaas|dukh|gham|pareshan|mushkil)\\b/i, /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/] },
-    { emotion: 'happy', patterns: [/\\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|love|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\\b/i, /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/] },
+    { emotion: 'excited', patterns: [/\b(can't wait|so excited|fantastic|let's go|amazing news|woohoo)\b/i, /\b(zabardast|bohat khoob|kya baat)\b/i] },
+    { emotion: 'empathetic', patterns: [/\b(i understand|that sounds hard|i'm here for you|my heart goes out|take your time)\b/i, /\b(samajh sakti|fikr na karein|main saath hoon)\b/i] },
+    { emotion: 'thoughtful', patterns: [/\b(let me think|consider|on reflection|perhaps|it depends|here's why)\b/i, /\b(ghor karte|sochti hoon|aaiye samjhein)\b/i] },
+    { emotion: 'confident', patterns: [/\b(absolutely|certainly|definitely|you can count on me|i've got this)\b/i, /\b(bilkul|yaqeenan|zaroor|main kar sakti hoon)\b/i] },
+    { emotion: 'angry', patterns: [/\b(unacceptable|furious|outrageous|that's not okay)\b/i, /\b(na-insafi|ghalat baat|bardasht nahi)\b/i] },
+    { emotion: 'curious', patterns: [/\b(i wonder|interesting question|curious|let's explore|tell me more)\b/i, /\b(dilchasp|mazeed bataiye|jaanna chahti)\b/i] },
+    { emotion: 'surprised', patterns: [/\b(wow|whoa|incredible|unbelievable|shocking|really\?!|seriously\?|what a surprise)\b/i, /\b(hairan|kamaal|wah|arey wah|sach mein)\b/i, /(حیران|کمال|واہ|سچ میں)/, /!{2,}|\?!/] },
+    { emotion: 'sad', patterns: [/\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\b/i, /\b(afsos|maaf|maazrat|udaas|dukh|gham|pareshan|mushkil)\b/i, /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/] },
+    { emotion: 'happy', patterns: [/\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|love|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\b/i, /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/] },
   ];
   for (const rule of rules) if (rule.patterns.some((pattern) => pattern.test(lower))) return rule.emotion;
   return 'calm';
