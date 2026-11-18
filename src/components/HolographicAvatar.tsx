@@ -143,10 +143,8 @@ export function HolographicAvatar({
 
     // Smoothly interpolated emotion weights
     const emotionWeights: Record<FacialEmotion, number> = {
-      calm: 1,
-      happy: 0,
-      sad: 0,
-      surprised: 0,
+      calm: 1, happy: 0, sad: 0, surprised: 0, excited: 0,
+      empathetic: 0, thoughtful: 0, confident: 0, angry: 0, curious: 0,
     };
 
     const renderFrame = (now: number) => {
@@ -206,17 +204,27 @@ export function HolographicAvatar({
       }
 
       const palette =
-        curState === 'error'
-          ? { primary: '#FF2D55', secondary: '#FB7185', glow: 'rgba(255,45,85,0.22)' }
-          : curEmotion === 'happy'
-            ? { primary: '#00F5FF', secondary: '#10B981', glow: 'rgba(16,185,129,0.22)' }
-            : curEmotion === 'sad'
-              ? { primary: '#60A5FA', secondary: '#818CF8', glow: 'rgba(96,165,250,0.2)' }
-              : curEmotion === 'surprised'
-                ? { primary: '#22D3EE', secondary: '#38BDF8', glow: 'rgba(34,211,238,0.3)' }
-                : curState === 'thinking'
-                  ? { primary: '#38BDF8', secondary: '#0066FF', glow: 'rgba(0,102,255,0.25)' }
-                  : { primary: '#00F5FF', secondary: '#0284C7', glow: 'rgba(0,245,255,0.2)' };
+        curState === 'error' || curEmotion === 'angry'
+          ? { primary: '#FF4D6D', secondary: '#FB7185', glow: 'rgba(255,45,85,0.24)' }
+          : curEmotion === 'excited'
+            ? { primary: '#FBBF24', secondary: '#FB923C', glow: 'rgba(251,191,36,0.24)' }
+            : curEmotion === 'empathetic'
+              ? { primary: '#A78BFA', secondary: '#F0ABFC', glow: 'rgba(167,139,250,0.22)' }
+              : curEmotion === 'thoughtful'
+                ? { primary: '#818CF8', secondary: '#38BDF8', glow: 'rgba(129,140,248,0.22)' }
+                : curEmotion === 'confident'
+                  ? { primary: '#22D3EE', secondary: '#34D399', glow: 'rgba(34,211,238,0.22)' }
+                  : curEmotion === 'curious'
+                    ? { primary: '#C084FC', secondary: '#67E8F9', glow: 'rgba(192,132,252,0.24)' }
+                    : curEmotion === 'happy'
+                      ? { primary: '#00F5FF', secondary: '#10B981', glow: 'rgba(16,185,129,0.22)' }
+                      : curEmotion === 'sad'
+                        ? { primary: '#60A5FA', secondary: '#818CF8', glow: 'rgba(96,165,250,0.2)' }
+                        : curEmotion === 'surprised'
+                          ? { primary: '#22D3EE', secondary: '#38BDF8', glow: 'rgba(34,211,238,0.3)' }
+                          : curState === 'thinking'
+                            ? { primary: '#38BDF8', secondary: '#0066FF', glow: 'rgba(0,102,255,0.25)' }
+                            : { primary: '#00F5FF', secondary: '#0284C7', glow: 'rgba(0,245,255,0.2)' };
 
       // Ambient holographic aura
       const aura = ctx.createRadialGradient(cx, cy, 40, cx, cy, 166);
@@ -300,9 +308,9 @@ export function HolographicAvatar({
         const py = (ny: number) => drawY + ny * drawSize;
 
         // 2. Emotional facial subtleties (cheek warmth, eye smile, sad mood)
-        if (emotionWeights.happy > 0.05) {
+        if (emotionWeights.happy + emotionWeights.excited > 0.05) {
           ctx.save();
-          ctx.globalAlpha = emotionWeights.happy * 0.16;
+          ctx.globalAlpha = Math.min(0.24, (emotionWeights.happy + emotionWeights.excited) * 0.18);
           const cheekL = ctx.createRadialGradient(px(0.385), py(0.455), 2, px(0.385), py(0.455), 20);
           cheekL.addColorStop(0, 'rgba(255, 142, 124, 0.85)');
           cheekL.addColorStop(1, 'rgba(255, 142, 124, 0)');
@@ -317,9 +325,9 @@ export function HolographicAvatar({
           ctx.restore();
         }
 
-        if (emotionWeights.sad > 0.05) {
+        if (emotionWeights.sad + emotionWeights.empathetic > 0.05) {
           ctx.save();
-          ctx.fillStyle = `rgba(24, 48, 112, ${emotionWeights.sad * 0.13})`;
+          ctx.fillStyle = `rgba(24, 48, 112, ${(emotionWeights.sad * 0.13) + (emotionWeights.empathetic * 0.06)})`;
           ctx.fillRect(drawX, drawY, drawSize, drawSize);
           ctx.restore();
         }
@@ -327,11 +335,11 @@ export function HolographicAvatar({
         // 3. Real-time synchronized lip & jaw articulation at TRUE lip seam (0.506, 0.529)
         const effectiveMouthOpen = Math.min(
           1,
-          curLipOpen + emotionWeights.surprised * 0.2
+          curLipOpen + emotionWeights.surprised * 0.2 + emotionWeights.excited * 0.08 + emotionWeights.curious * 0.06
         );
         const mouthCenterX = px(0.506);
         const mouthSeamY = py(0.529);
-        const cornerShift = emotionWeights.happy * -2.2 + emotionWeights.sad * 2.0;
+        const cornerShift = (emotionWeights.happy + emotionWeights.excited) * -2.2 + (emotionWeights.sad + emotionWeights.empathetic) * 2.0;
 
         if (effectiveMouthOpen > 0.02) {
           const halfW =

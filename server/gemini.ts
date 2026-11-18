@@ -87,7 +87,7 @@ export function buildSystemInstruction(params: {
     `Personality style: ${personalityDesc}`,
     `Language rule: ${languageRule}`,
     `Tone: ${toneRule}`,
-    `Emotion tagging: Begin every response with exactly one emotion tag on the very start of the message: [emotion:happy], [emotion:sad], [emotion:surprised], or [emotion:calm] matching the emotional tone of your reply.`,
+    `Emotion tagging: Begin every response with exactly one emotion tag on the very start of the message: [emotion:happy], [emotion:sad], [emotion:surprised], [emotion:calm], [emotion:excited], [emotion:empathetic], [emotion:thoughtful], [emotion:confident], [emotion:angry], or [emotion:curious] matching the emotional tone of your reply.`,
     `Voice-readiness: Keep sentences natural with clean punctuation so spoken audio breathes naturally.`,
     `\nUser Long-Term Memory:\n${memLines}`,
     `\nActive Reminders:\n${remLines}`,
