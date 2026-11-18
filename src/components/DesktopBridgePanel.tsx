@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Link2, Monitor, Play, Unplug } from 'lucide-react';
 
-import { getDesktopBridgeToken, runDesktopApp } from '../lib/desktopBridge';
+import { getDesktopBridgeToken, runDesktopApp, TOKEN_KEY } from '../lib/desktopBridge';
 
 export function DesktopBridgePanel() {
   const [token, setToken] = useState(() => getDesktopBridgeToken());
