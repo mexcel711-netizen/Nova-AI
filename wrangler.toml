@@ -1,0 +1,15 @@
+name = "nova-ai"
+main = "worker/index.ts"
+compatibility_date = "2025-11-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Automatically binds Cloudflare Workers AI as env.AI upon deployment from GitHub
+[ai]
+binding = "AI"
+
+[vars]
+CLOUDFLARE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
