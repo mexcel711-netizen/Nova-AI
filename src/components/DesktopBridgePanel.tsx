@@ -30,7 +30,15 @@ export function DesktopBridgePanel() {
     }
   };
 
-  const newTab = async () => {\n    setBusy(true);\n    setMessage('');\n    try { await openChromeNewTab(); setStatus('connected'); setMessage('Chrome new tab opened'); }\n    catch (error) { setMessage(error instanceof Error ? error.message : 'Chrome tab action failed'); setStatus('offline'); }\n    finally { setBusy(false); }\n  };\n\n  const launch = async (app: string) => {
+  const newTab = async () => {
+    setBusy(true);
+    setMessage('');
+    try { await openChromeNewTab(); setStatus('connected'); setMessage('Chrome new tab opened'); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Chrome tab action failed'); setStatus('offline'); }
+    finally { setBusy(false); }
+  };
+
+  const launch = async (app: string) => {
     setBusy(true);
     setMessage('');
     try {
