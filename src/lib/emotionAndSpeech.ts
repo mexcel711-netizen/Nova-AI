@@ -106,7 +106,7 @@ export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotio
   const chunks = splitSpeechChunks(text, 220);
   const textWithBreaths = chunks.join(' <breath> ');
 
-  const emotionStyle: Record<FacialEmotion, string> = {
+  const emotionStyles: Record<FacialEmotion, string> = {
     calm: 'Calm, composed, soothing Pakistani female voice with poised warmth.',
     happy: 'Warm, cheerful, smiling Pakistani female voice with gentle enthusiasm.',
     excited: 'Bright, energetic, delighted Pakistani female voice with lively but natural inflection.',
@@ -117,7 +117,8 @@ export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotio
     angry: 'Firm, controlled Pakistani female voice expressing displeasure without shouting.',
     surprised: 'Expressive, bright, intrigued Pakistani female voice with lively inflection.',
     curious: 'Engaged, inquisitive Pakistani female voice with an inviting upward lilt.',
-  }[emotion] || 'Calm, composed, soothing Pakistani female voice with poised warmth.';
+  };
+  const emotionStyle = emotionStyles[emotion] || 'Calm, composed, soothing Pakistani female voice with poised warmth.';
 
   const styleInstruction = `${emotionStyle} Speak fluent Urdu with an authentic Pakistani accent and clear natural English when mixing languages. Maintain natural human speech rhythm and subtle breathing pauses.`;
 
