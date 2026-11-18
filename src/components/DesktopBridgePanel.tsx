@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Link2, Monitor, Play, Unplug } from 'lucide-react';
 
-import { getDesktopBridgeToken, runDesktopApp, TOKEN_KEY } from '../lib/desktopBridge';
+import { getDesktopBridgeToken, openChromeNewTab, runDesktopApp, TOKEN_KEY } from '../lib/desktopBridge';
 
 export function DesktopBridgePanel() {
   const [token, setToken] = useState(() => getDesktopBridgeToken());
@@ -30,7 +30,7 @@ export function DesktopBridgePanel() {
     }
   };
 
-  const launch = async (app: string) => {
+  const newTab = async () => {\n    setBusy(true);\n    setMessage('');\n    try { await openChromeNewTab(); setStatus('connected'); setMessage('Chrome new tab opened'); }\n    catch (error) { setMessage(error instanceof Error ? error.message : 'Chrome tab action failed'); setStatus('offline'); }\n    finally { setBusy(false); }\n  };\n\n  const launch = async (app: string) => {
     setBusy(true);
     setMessage('');
     try {
@@ -62,6 +62,9 @@ export function DesktopBridgePanel() {
         </button>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" onClick={() => void newTab()} disabled={busy || !token.trim()} className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-200 hover:border-cyan-400 disabled:opacity-40">
+          <Play className="h-3 w-3" /> Chrome New Tab
+        </button>
         {(['chrome', 'edge', 'notepad', 'calculator'] as const).map((app) => (
           <button key={app} type="button" onClick={() => void launch(app)} disabled={busy || !token.trim()} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200 disabled:opacity-40">
             <Play className="h-3 w-3" /> {app[0].toUpperCase() + app.slice(1)}
