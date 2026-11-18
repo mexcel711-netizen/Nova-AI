@@ -1,0 +1,27 @@
+CREATE TABLE IF NOT EXISTS conversations (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL,
+ language TEXT DEFAULT 'en', emotion TEXT DEFAULT 'calm', model_used TEXT, provider_used TEXT,
+ thinking_used INTEGER DEFAULT 0, skill_executed TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, is_archived INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp);
+CREATE TABLE IF NOT EXISTS memories (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, key TEXT, value TEXT NOT NULL,
+ source TEXT DEFAULT 'user_stated', confidence REAL DEFAULT 1.0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+ updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, is_deleted INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
+CREATE TABLE IF NOT EXISTS skills_config (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, skill_name TEXT UNIQUE NOT NULL, display_name TEXT NOT NULL,
+ description TEXT NOT NULL, trigger_phrases TEXT NOT NULL, action_type TEXT NOT NULL, action_value TEXT,
+ is_enabled INTEGER DEFAULT 1, is_custom INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS reminders (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, remind_at TEXT NOT NULL,
+ is_done INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS notes (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT NOT NULL, tags TEXT DEFAULT '[]',
+ created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);
