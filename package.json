@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "nova-ai",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -9,7 +9,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test src/lib/*.test.ts",
+    "db:migrate": "wrangler d1 execute nova-ai-production --remote --file=./migrations/0001_initial.sql",
+    "deploy": "npm run build && wrangler deploy",
+    "db": "wrangler d1 execute nova-ai-production --remote --file=./migrations/0001_initial.sql"
   },
   "dependencies": {
     "@google/genai": "^3.5.0",
