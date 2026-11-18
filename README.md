@@ -35,3 +35,17 @@ bun run deploy
 - Production is behind Cloudflare Access; keep the allow policy limited to trusted email identities.
 - The current deployment is a single-user assistant, not a multi-tenant service.
 - Never commit API keys, `.env` files, local SQLite databases, or Wrangler state.
+
+
+## NOVA holographic command centre and desktop companion
+The Home screen includes a holographic command-centre layout and an optional local Desktop Bridge panel.
+
+### Windows desktop actions
+1. Start the local companion from the repository root: `bun run desktop:companion`.
+2. Copy the one-time pairing token printed in the terminal into NOVA's **Desktop Bridge** panel and press **Pair**.
+3. Use the panel buttons or say/type commands such as `Chrome kholo`, `Edge kholo`, `Notepad kholo`, or `Calculator kholo`.
+
+The companion is an optional local Node.js process. It binds to loopback only, checks the NOVA origin and pairing token, and only launches the small allowlist of applications. See [desktop-companion/README.md](desktop-companion/README.md) for setup and security details.
+
+### Pakistani Urdu neural female voice
+When the desktop companion is paired, NOVA uses Microsoft Edge neural TTS with `ur-PK-UzmaNeural` for Urdu and `en-US-JennyNeural` for English. The synthesis service is internet-backed. Without the companion, the existing hosted TTS fallback is used. Voice quality and accent should be tested on the target device.
