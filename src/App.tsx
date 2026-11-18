@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { CharacterView } from './components/views/CharacterView';
 import { HomeView } from './components/views/HomeView';
-import { runDesktopApp } from './components/DesktopBridgePanel';
+import { runDesktopApp } from './lib/desktopBridge';
 import { MemoryView } from './components/views/MemoryView';
 import { RecentView } from './components/views/RecentView';
 import { SettingsView } from './components/views/SettingsView';
