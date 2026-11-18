@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Link2, Monitor, Play, Unplug } from 'lucide-react';
 
-import { getDesktopBridgeToken, openChromeNewTab, runDesktopApp, TOKEN_KEY } from '../lib/desktopBridge';
+import { getDesktopBridgeToken, openChromeNewTab, openDesktopLocation, runDesktopApp, TOKEN_KEY } from '../lib/desktopBridge';
 
 export function DesktopBridgePanel() {
   const [token, setToken] = useState(() => getDesktopBridgeToken());
@@ -35,6 +35,14 @@ export function DesktopBridgePanel() {
     setMessage('');
     try { await openChromeNewTab(); setStatus('connected'); setMessage('Chrome new tab opened'); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Chrome tab action failed'); setStatus('offline'); }
+    finally { setBusy(false); }
+  };
+
+  const openFolder = async (folder: string) => {
+    setBusy(true);
+    setMessage('');
+    try { await openDesktopLocation(folder); setStatus('connected'); setMessage(`${folder} folder opened`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Folder action failed'); setStatus('offline'); }
     finally { setBusy(false); }
   };
 
@@ -73,12 +81,17 @@ export function DesktopBridgePanel() {
         <button type="button" onClick={() => void newTab()} disabled={busy || !token.trim()} className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-200 hover:border-cyan-400 disabled:opacity-40">
           <Play className="h-3 w-3" /> Chrome New Tab
         </button>
-        {(['chrome', 'edge', 'notepad', 'calculator'] as const).map((app) => (
+        {(['chrome', 'edge', 'notepad', 'calculator', 'explorer', 'task-manager', 'settings'] as const).map((app) => (
           <button key={app} type="button" onClick={() => void launch(app)} disabled={busy || !token.trim()} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200 disabled:opacity-40">
-            <Play className="h-3 w-3" /> {app[0].toUpperCase() + app.slice(1)}
+            <Play className="h-3 w-3" /> {app === 'task-manager' ? 'Task Manager' : app[0].toUpperCase() + app.slice(1)}
           </button>
         ))}
-        <button type="button" onClick={() => { localStorage.removeItem(TOKEN_KEY); setToken(''); setStatus('idle'); setMessage('Pairing token cleared from this browser'); }} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:text-rose-300">
+        {(['downloads', 'desktop', 'documents'] as const).map((folder) => (
+        <button key={folder} type="button" onClick={() => void openFolder(folder)} disabled={busy || !token.trim()} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200 disabled:opacity-40">
+          <Monitor className="h-3 w-3" /> {folder[0].toUpperCase() + folder.slice(1)}
+        </button>
+      ))}
+      <button type="button" onClick={() => { localStorage.removeItem(TOKEN_KEY); setToken(''); setStatus('idle'); setMessage('Pairing token cleared from this browser'); }} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:text-rose-300">
           <Unplug className="h-3 w-3" /> Unpair
         </button>
       </div>

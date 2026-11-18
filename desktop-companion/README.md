@@ -34,7 +34,7 @@ This is cloud-backed speech synthesis, so it needs internet access. Voice availa
 ## Safety
 - The companion accepts requests only from the production NOVA origin and local Vite development origins.
 - Every request requires the pairing token.
-- App launch is restricted to the four listed apps.
+- App launch is restricted to the listed applications; folder opening is restricted to known user folders.
 - URL opening accepts HTTP/HTTPS only.
 - The companion has no remote port exposure; do not change the bind address to `0.0.0.0`.
 - This is a local development companion, not a signed Windows installer or Windows service. Keep it running while using desktop actions.
@@ -52,3 +52,13 @@ Chrome tab requests use Chrome's `--new-tab` switch, which targets an existing C
 
 ## Emotion-aware voice delivery
 The companion passes emotion-dependent rate and pitch to Edge Neural TTS for calm, happy, excited, sad, empathetic, thoughtful, confident, angry, and surprised replies. These are subtle prosody adjustments, not a guarantee of human-level emotional acting. The Urdu female voice is `ur-PK-UzmaNeural`; actual voice naturalness depends on Microsoft's service and should be auditioned on the target PC.
+
+## More Windows actions
+Supported additional voice commands:
+- `File Explorer kholo` / `Explorer kholo`
+- `Task Manager kholo`
+- `Settings kholo`
+- `Downloads folder kholo`, `Desktop folder kholo`, or `Documents folder kholo`
+- Urdu-script equivalents such as `ٹاسک مینیجر کھولو`, `ڈاؤن لوڈز کھولو`, and `فائل ایکسپلورر کھولو`
+
+The companion opens only fixed, known folders under the current Windows user's profile. It does not accept arbitrary paths or run arbitrary PowerShell/shell commands.
