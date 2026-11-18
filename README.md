@@ -1,16 +1,37 @@
 # NOVA AI
 
-Bilingual Pakistani Urdu, Roman Urdu and English AI assistant.
+A bilingual Pakistani Urdu, Roman Urdu and English AI voice assistant built with React, TypeScript, Cloudflare Workers AI and D1.
 
-## Production
-Cloudflare Worker serves the SPA and API. D1 stores chat, memories, skills, notes, reminders and settings. Workers AI uses the `AI` binding; Gemini is optional.
+## Production architecture
+- Cloudflare Worker serves the Vite SPA and API routes.
+- Cloudflare D1 stores conversations, memories, skills, notes, reminders and app configuration.
+- Workers AI is the default inference provider through the `AI` binding.
+- Optional `GEMINI_API_KEY` enables Gemini chat routing and audio transcription.
+- The Worker is protected by Cloudflare Access. Sign-in is restricted to the account owner's email policy.
 
-## Deploy
-1. `bun install`
-2. `bun run build`
-3. `npx wrangler d1 execute nova-ai-production --remote --file=./migrations/0001_initial.sql`
-4. Optional: `npx wrangler secret put GEMINI_API_KEY`
-5. `npx wrangler deploy`
-6. Verify `/api/health`.
+## Deployment
+Cloudflare Workers Builds is connected to this GitHub repository and deploys from `main`. Each relevant push runs:
+1. `bun install --frozen-lockfile`
+2. TypeScript checks, unit tests and Vite production build
+3. Idempotent remote D1 migration
+4. `bunx wrangler deploy`
 
-Keep the single-user Worker behind Cloudflare Access until authentication and tenant isolation are implemented. Never commit secrets or local database files.
+For a manual deploy:
+```bash
+bun install --frozen-lockfile
+bun run lint
+bun run test
+bun run build
+bun run db:migrate
+bun run deploy
+```
+
+## Local development
+- Copy `.env.example` to `.env` and add `GEMINI_API_KEY` if you want to use Gemini locally.
+- Run `bun install` then `bun run dev`.
+- The local Express server uses Node SQLite; production uses Cloudflare D1.
+
+## Security and privacy
+- Production is behind Cloudflare Access; keep the allow policy limited to trusted email identities.
+- The current deployment is a single-user assistant, not a multi-tenant service.
+- Never commit API keys, `.env` files, local SQLite databases, or Wrangler state.
