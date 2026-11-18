@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { UniversalEdgeTTS } from 'edge-tts-universal';
 
 const HOST = '127.0.0.1';
@@ -51,6 +52,14 @@ function safeWebUrl(value) {
 }
 function launchApp(app) {
   if (app === 'chrome') { launchChrome(); return; }
+  if (app === 'explorer' || app === 'task-manager' || app === 'settings') {
+    if (process.platform === 'win32') {
+      const command = app === 'explorer' ? 'explorer.exe' : app === 'task-manager' ? 'taskmgr.exe' : 'ms-settings:';
+      const child = spawn(command, [], { detached: true, stdio: 'ignore', windowsHide: true }); child.unref(); return;
+    }
+    if (app === 'settings') throw new Error('Settings shortcut is currently Windows-only.');
+    const child = spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [app === 'explorer' ? homedir() : 'htop'], { detached: true, stdio: 'ignore' }); child.unref(); return;
+  }
   if (process.platform === 'win32') {
     const roots = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(Boolean);
     const candidates = app === 'edge'
@@ -78,7 +87,7 @@ const server = createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
   if (req.method === 'GET' && url.pathname === '/v1/health') {
-    return send(res, 200, { ok: true, platform: process.platform, capabilities: ['chrome', 'chrome-new-tab', 'chrome-search', 'edge', 'notepad', 'calculator', 'urdu-neural-tts'] }, origin);
+    return send(res, 200, { ok: true, platform: process.platform, capabilities: ['chrome', 'chrome-new-tab', 'chrome-search', 'edge', 'notepad', 'calculator', 'explorer', 'task-manager', 'settings', 'known-folders', 'urdu-neural-tts'] }, origin);
   }
   if (req.method !== 'POST') return send(res, 404, { error: 'Not found' }, origin);
 
@@ -93,9 +102,26 @@ const server = createServer(async (req, res) => {
   try {
     if (url.pathname === '/v1/launch') {
       const app = String(body.app || '').toLowerCase();
-      if (!['chrome', 'edge', 'notepad', 'calculator'].includes(app)) return send(res, 400, { error: 'This app is not on the safe launch allowlist.' }, origin);
+      if (!['chrome', 'edge', 'notepad', 'calculator', 'explorer', 'task-manager', 'settings'].includes(app)) return send(res, 400, { error: 'This app is not on the safe launch allowlist.' }, origin);
       launchApp(app);
       return send(res, 200, { ok: true, action: 'launch', app }, origin);
+    }
+    if (url.pathname === '/v1/open-location') {
+      const locations = {
+        desktop: join(homedir(), 'Desktop'),
+        downloads: join(homedir(), 'Downloads'),
+        documents: join(homedir(), 'Documents'),
+        pictures: join(homedir(), 'Pictures'),
+        music: join(homedir(), 'Music'),
+        videos: join(homedir(), 'Videos'),
+        home: homedir(),
+      };
+      const location = String(body.location || '').toLowerCase();
+      const target = locations[location];
+      if (!target) return send(res, 400, { error: 'Folder is not on the safe allowlist.' }, origin);
+      const child = spawn(process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open', [target], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.unref();
+      return send(res, 200, { ok: true, action: 'open-location', location }, origin);
     }
     if (url.pathname === '/v1/chrome/new-tab') {
       const target = body.url ? safeWebUrl(body.url) : 'chrome://newtab';
