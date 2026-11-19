@@ -48,7 +48,7 @@ const DEFAULT_CLIENT_CONFIG: AppConfig = {
     'You are NOVA, a poised, warm Pakistani female AI assistant fluent in Urdu, Roman Urdu, and English.',
   language: 'bilingual',
   response_tone: 'casual',
-  tts_voice: 'Kore',
+  tts_voice: 'ur-PK-UzmaNeural',
   voice_speed: 1.0,
   voice_volume: 1.0,
   stt_model: 'base',
@@ -131,6 +131,7 @@ export default function App() {
   const wakeRecRef = useRef<SpeechRecognitionHandle | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micAudioCtxRef = useRef<AudioContext | null>(null);
   const micRafRef = useRef<number>(0);
   const terminatedRef = useRef<boolean>(false);
   const spokenRemindersRef = useRef<Set<number>>(new Set());
@@ -191,6 +192,10 @@ export default function App() {
       micStreamRef.current.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
     }
+    if (micAudioCtxRef.current) {
+      void micAudioCtxRef.current.close().catch(() => {});
+      micAudioCtxRef.current = null;
+    }
     setMicLevel(0);
   }, []);
 
@@ -228,22 +233,29 @@ export default function App() {
   }, [handleTerminate]);
 
   const startMicMeter = useCallback(async () => {
+    if (micStreamRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
       const audioCtx = new AudioContext();
+      micAudioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.6;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
+      let smoothed = 0;
       const loop = () => {
         analyser.getByteFrequencyData(data);
         let total = 0;
         for (let i = 0; i < data.length; i++) total += data[i];
-        const norm = Math.min(1, total / data.length / 110);
-        setMicLevel(norm);
+        const raw = Math.min(1, total / data.length / 105);
+        // Apply voice-activity noise gate so room silence settles cleanly to 0
+        const gated = raw < 0.065 ? 0 : Math.min(1, (raw - 0.065) / 0.58);
+        smoothed = smoothed * 0.55 + gated * 0.45;
+        setMicLevel(smoothed < 0.02 ? 0 : smoothed);
         micRafRef.current = requestAnimationFrame(loop);
       };
       loop();
@@ -806,6 +818,7 @@ export default function App() {
       return;
     }
 
+    void startMicMeter();
     const wakePhrase = config.wake_word.toLowerCase();
     const handle = startBrowserRecognition({
       lang: 'en-US',
@@ -830,8 +843,11 @@ export default function App() {
 
     return () => {
       handle?.stop();
+      if (!recognitionRef.current) {
+        stopMicMeter();
+      }
     };
-  }, [wakeWordActive, config.wake_word, handleToggleListening]);
+  }, [wakeWordActive, config.wake_word, handleToggleListening, startMicMeter, stopMicMeter]);
 
   const handleNewSession = () => {
     handleTerminate();
