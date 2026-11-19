@@ -24,7 +24,7 @@ else return json({error:'Selected AI provider is unavailable. Configure Workers 
 if(!raw.trim())throw new Error('AI provider returned an empty response');const parsed=extractEmotionAndCleanText(raw),language=detectUrduIntent(parsed.cleanText)?'ur':lang;await save(db,{sessionId,role:'assistant',content:parsed.cleanText,language,emotion:parsed.emotion,modelUsed:model,providerUsed:provider,thinkingUsed:thinking});return json({reply:parsed.cleanText,emotion:parsed.emotion,language,modelUsed:model,providerUsed:provider,thinkingUsed:thinking,extractedMemories:extracted} satisfies ChatApiResponse);}
 async function vision(request:Request,env:Env){
   const b=await request.json() as any;
-  const imageBase64=String(b.imageBase64||'').replace(/^data:image\\/[^;]+;base64,/,'');
+  const imageBase64=String(b.imageBase64||'');
   if(!imageBase64||imageBase64.length>5_000_000)return json({error:'A camera snapshot (max 3.75MB) is required.'},400);
   if(!env.GEMINI_API_KEY)return json({error:'Camera vision needs GEMINI_API_KEY. Add it as a secret to the NOVA Worker, then try again.'},503);
   const mimeType=String(b.mimeType||'image/jpeg');
@@ -36,7 +36,7 @@ async function vision(request:Request,env:Env){
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       systemInstruction:{parts:[{text:'You are NOVA, a warm Pakistani female visual assistant. Inspect only what is clearly visible in the supplied single camera frame. Do not identify people, infer sensitive traits, or claim certainty about ambiguous details. If asked whether something is visible, answer directly and describe observable objects/actions. Reply in the user’s language (Urdu, Roman Urdu, or English), naturally and concisely. Never claim continuous monitoring: this is one snapshot only. Start with one emotion tag such as [emotion:curious] or [emotion:calm].'}]},
-      contents:[{role:'user',parts:[{inlineData:{mimeType,data:imageBase64}},{text:[userPrompt,gestureHint?'Camera motion hint: '+gestureHint:''].filter(Boolean).join('\\n')}]}],
+      contents:[{role:'user',parts:[{inlineData:{mimeType,data:imageBase64}},{text:[userPrompt,gestureHint?'Camera motion hint: '+gestureHint:''].filter(Boolean).join('\n')}]}],
       generationConfig:{temperature:0.45,maxOutputTokens:500}
     })
   });
