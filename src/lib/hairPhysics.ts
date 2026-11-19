@@ -7,6 +7,7 @@ export interface HairWindInput {
   state: AvatarState;
   micLevel: number;
   lipOpenness: number;
+  lipWidth?: number;
 }
 
 export interface HairOffsetResult {
@@ -26,33 +27,24 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 /**
- * Computes raw voice/speech activity into a normalized target wind intensity [0..1].
- * Returns exact 0 when the user and assistant are both quiet (hair settles straight down).
+ * Maps NOVA's speaking state and mouth articulation to wind intensity [0..1].
+ * Any non-speaking avatar state returns exact 0, regardless of microphone input.
  */
-export function computeTargetHairWind({ state, micLevel, lipOpenness }: HairWindInput): number {
-  const mic = clamp01(micLevel);
+export function computeTargetHairWind({ state, lipOpenness, lipWidth = 0 }: HairWindInput): number {
+  // Hair is driven exclusively by NOVA's output state. Mic input must never
+  // animate the character while the user is speaking or during listening.
+  if (state !== 'speaking') return 0;
+
+  // Keep a gentle continuous breeze between phonemes, then let the mouth
+  // aperture and width modulate the strength in sync with the lip animation.
   const lip = clamp01(lipOpenness);
-
-  // Assistant speaking: lips + vocal envelope drive flowing wind through hair
-  if (state === 'speaking') {
-    if (lip <= LIP_NOISE_FLOOR) {
-      return 0.42;
-    }
-    return clamp01(0.42 + lip * 0.58);
-  }
-
-  // User speaking into mic (during listening, wake-word watch, or active voice input)
-  if (mic > MIC_NOISE_FLOOR) {
-    const gated = clamp01((mic - MIC_NOISE_FLOOR) / (1 - MIC_NOISE_FLOOR));
-    return clamp01(0.32 + gated * 0.68);
-  }
-
-  // Quiet listening pause or idle silence -> hair settles completely straight down
-  return 0;
+  const width = clamp01(lipWidth);
+  const articulation = Math.max(lip, width * 0.72);
+  return clamp01(0.34 + articulation * 0.66);
 }
 
 /**
- * Smoothly ramps wind up fast on speech onset and damps back to exact 0 when silent.
+ * Smoothly ramps wind up on speech onset and damps back to exact 0 when NOVA is silent.
  */
 export function stepHairWind(currentWind: number, targetWind: number, dtScale = 1): number {
   const cur = clamp01(currentWind);
