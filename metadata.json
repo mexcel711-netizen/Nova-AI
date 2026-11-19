@@ -1,6 +1,6 @@
 {
   "name": "NOVA AI",
   "description": "Your Personal AI. Always Ready. Bilingual Urdu & English personal assistant with persistent memory, modular skills, and high-thinking reasoning.",
-  "requestFramePermissions": ["microphone"],
+  "requestFramePermissions": ["microphone", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

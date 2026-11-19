@@ -4,13 +4,15 @@ import {
   MessageSquarePlus,
   X,
 } from 'lucide-react';
+import { OfflineIndicator, PWAInstallButton } from './components/PWAInstallButton';
 import { CharacterView } from './components/views/CharacterView';
 import { HomeView } from './components/views/HomeView';
-import { executeDesktopCommand } from './lib/desktopIntent';
 import { MemoryView } from './components/views/MemoryView';
 import { RecentView } from './components/views/RecentView';
 import { SettingsView } from './components/views/SettingsView';
 import { SkillsView } from './components/views/SkillsView';
+import { executeDesktopCommand } from './lib/desktopIntent';
+import { useCameraAwareness } from './lib/useCameraAwareness';
 import {
   isSpeechRecognitionSupported,
   speakText,
@@ -21,13 +23,18 @@ import {
 import type {
   AppConfig,
   AvatarState,
+  CharacterProfile,
   ChatApiResponse,
   ChatMessage,
   FacialEmotion,
+  KnowledgeKind,
+  KnowledgeSource,
   MemoryRecord,
+  MoodMode,
   NoteRecord,
   ProviderStatus,
   ReminderRecord,
+  ResponseStyle,
   SessionSummary,
   SidebarPage,
   SkillActionType,
@@ -51,6 +58,10 @@ const DEFAULT_CLIENT_CONFIG: AppConfig = {
   deep_thinking_mode: 'auto',
   default_model: 'gemini-4-hydrogen',
   ai_provider: 'auto',
+  active_mood: 'auto',
+  active_character_id: 1,
+  hands_free_mode: false,
+  camera_awareness_enabled: false,
 };
 
 const DEFAULT_PROVIDER_STATUS: ProviderStatus = {
@@ -87,6 +98,8 @@ export default function App() {
 
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CLIENT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>(DEFAULT_PROVIDER_STATUS);
+  const [characters, setCharacters] = useState<CharacterProfile[]>([]);
+  const [knowledge, setKnowledge] = useState<KnowledgeSource[]>([]);
   const [skills, setSkills] = useState<SkillConfig[]>([]);
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [notes, setNotes] = useState<NoteRecord[]>([]);
@@ -108,6 +121,8 @@ export default function App() {
   const [lipWidth, setLipWidth] = useState(0);
 
   const [wakeWordActive, setWakeWordActive] = useState(false);
+  const [autoWatchCamera, setAutoWatchCamera] = useState(false);
+  const [requestedHubTab, setRequestedHubTab] = useState<'visual' | 'study' | 'skills' | 'voice' | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [warningBanner, setWarningBanner] = useState<string | null>(null);
   const [launchedUrl, setLaunchedUrl] = useState<string | null>(null);
@@ -117,6 +132,13 @@ export default function App() {
   const chatAbortRef = useRef<AbortController | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const micRafRef = useRef<number>(0);
+  const terminatedRef = useRef<boolean>(false);
+  const spokenRemindersRef = useRef<Set<number>>(new Set());
+
+  const activeCharacter =
+    characters.find((c) => c.is_active) ||
+    characters.find((c) => c.id === config.active_character_id) ||
+    characters[0];
 
   const fetchState = useCallback(async () => {
     try {
@@ -129,15 +151,22 @@ export default function App() {
         notes: NoteRecord[];
         reminders: ReminderRecord[];
         sessions: SessionSummary[];
+        characters?: CharacterProfile[];
+        knowledge?: KnowledgeSource[];
         providerStatus?: ProviderStatus;
       };
       setConfig(data.config);
       if (data.providerStatus) setProviderStatus(data.providerStatus);
+      if (data.characters) setCharacters(data.characters);
+      if (data.knowledge) setKnowledge(data.knowledge);
       setSkills(data.skills);
       setMemories(data.memories);
       setNotes(data.notes);
       setReminders(data.reminders);
       setSessions(data.sessions);
+      if (data.config.active_mood && data.config.active_mood !== 'auto') {
+        setAvatarEmotion(data.config.active_mood);
+      }
       setMessages((prev) => {
         if (prev.length === 1 && prev[0].id.startsWith('greeting-')) {
           return [createGreetingMessage(prev[0].sessionId, data.config.assistant_name)];
@@ -175,6 +204,7 @@ export default function App() {
   }, [stopMicMeter]);
 
   const handleTerminate = useCallback(() => {
+    terminatedRef.current = true;
     stopAllSpeech();
     setLipOpenness(0);
     setLipWidth(0);
@@ -197,8 +227,34 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleTerminate]);
 
+  const startMicMeter = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const loop = () => {
+        analyser.getByteFrequencyData(data);
+        let total = 0;
+        for (let i = 0; i < data.length; i++) total += data[i];
+        const norm = Math.min(1, total / data.length / 110);
+        setMicLevel(norm);
+        micRafRef.current = requestAnimationFrame(loop);
+      };
+      loop();
+    } catch {
+      setMicLevel(0.45);
+    }
+  }, []);
+
   const speakWithLipSync = useCallback(
     async (text: string, language: 'en' | 'ur', emotion: FacialEmotion) => {
+      terminatedRef.current = false;
       setAvatarEmotion(emotion);
       await speakText({
         text,
@@ -222,11 +278,310 @@ export default function App() {
     [config.tts_voice, config.voice_speed, config.voice_volume]
   );
 
+  // Spoken proactive reminder alerts when due
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const nowStr = new Date()
+        .toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        .toLowerCase();
+      for (const rem of reminders) {
+        if (rem.is_done || spokenRemindersRef.current.has(rem.id)) continue;
+        if (rem.remind_at.toLowerCase().includes(nowStr)) {
+          spokenRemindersRef.current.add(rem.id);
+          const alertText = `Reminder: ${rem.title}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `rem-alert-${rem.id}-${Date.now()}`,
+              sessionId,
+              role: 'assistant',
+              content: alertText,
+              emotion: 'happy',
+              language: 'en',
+              timestamp: new Date().toISOString(),
+              skillExecuted: 'smart_reminder_alert',
+            },
+          ]);
+          if (config.auto_speak) {
+            void speakWithLipSync(alertText, 'en', 'happy');
+          }
+        }
+      }
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [reminders, sessionId, config.auto_speak, speakWithLipSync]);
+
+  const handleSaveConfig = useCallback(async (partial: Partial<AppConfig>) => {
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(partial),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        config: AppConfig;
+        providerStatus?: ProviderStatus;
+      };
+      setConfig(data.config);
+      if (data.providerStatus) setProviderStatus(data.providerStatus);
+    }
+  }, []);
+
+  const handleSelectMood = useCallback(
+    async (mood: MoodMode) => {
+      setAvatarEmotion(mood === 'auto' ? 'calm' : mood);
+      await handleSaveConfig({ active_mood: mood });
+    },
+    [handleSaveConfig]
+  );
+
+  const handleSelectCharacter = useCallback(async (idOrSlug: number | string) => {
+    const res = await fetch(`/api/characters/${encodeURIComponent(String(idOrSlug))}/select`, {
+      method: 'POST',
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        character: CharacterProfile;
+        characters: CharacterProfile[];
+        config: AppConfig;
+      };
+      setCharacters(data.characters);
+      setConfig(data.config);
+      if (data.config.active_mood !== 'auto') {
+        setAvatarEmotion(data.config.active_mood);
+      }
+    }
+  }, []);
+
+  const handleCreateCharacter = useCallback(
+    async (input: {
+      name: string;
+      role_title: string;
+      bio: string;
+      personality: ResponseStyle;
+      default_mood: MoodMode;
+      tts_voice: string;
+      system_prompt: string;
+    }) => {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { characters: CharacterProfile[] };
+        setCharacters(data.characters);
+      }
+    },
+    []
+  );
+
+  const handleDeleteCharacter = useCallback(async (id: number) => {
+    const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = (await res.json()) as { characters: CharacterProfile[] };
+      setCharacters(data.characters);
+    }
+  }, []);
+
+  const handleEvolveCharacter = useCallback(async () => {
+    const res = await fetch('/api/evolve', { method: 'POST' });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        character: CharacterProfile;
+        characters: CharacterProfile[];
+        skills: SkillConfig[];
+        outcome: {
+          nextBondLevel: number;
+          nextXp: number;
+          newTraits: string[];
+          journalEntry: string;
+        };
+      };
+      setCharacters(data.characters);
+      setSkills(data.skills);
+      const summary = `${data.character.name} evolved to Bond Level ${data.outcome.nextBondLevel} (${data.outcome.nextXp} XP). ${data.outcome.journalEntry}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `evolve-${Date.now()}`,
+          sessionId,
+          role: 'assistant',
+          content: summary,
+          emotion: 'confident',
+          language: 'en',
+          timestamp: new Date().toISOString(),
+          skillExecuted: 'self_evolve',
+        },
+      ]);
+      if (config.auto_speak) {
+        await speakWithLipSync(summary, 'en', 'confident');
+      }
+    }
+  }, [sessionId, config.auto_speak, speakWithLipSync]);
+
+  const handleAnalyzeStudy = useCallback(
+    async (input: {
+      kind: KnowledgeKind;
+      title: string;
+      goal: string;
+      contentText: string;
+      fileBase64?: string;
+      fileMimeType?: string;
+    }) => {
+      setIsSending(true);
+      setAvatarState('thinking');
+      try {
+        const res = await fetch('/api/study', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...input, sessionId }),
+        });
+        const data = (await res.json()) as {
+          knowledge: KnowledgeSource[];
+          memories: MemoryRecord[];
+          reply: string;
+          emotion: FacialEmotion;
+          modelUsed: string;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(data.error || 'Study analysis failed.');
+
+        setKnowledge(data.knowledge);
+        setMemories(data.memories);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `study-user-${Date.now()}`,
+            sessionId,
+            role: 'user',
+            content: `Read & explain ${input.kind}: ${input.title}${input.goal ? ` — Goal: ${input.goal}` : ''}`,
+            language: 'en',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: `study-assistant-${Date.now() + 1}`,
+            sessionId,
+            role: 'assistant',
+            content: data.reply,
+            emotion: data.emotion || 'confident',
+            language: 'ur',
+            timestamp: new Date().toISOString(),
+            modelUsed: data.modelUsed,
+            skillExecuted: 'study_mentor',
+          },
+        ]);
+        if (config.auto_speak) {
+          await speakWithLipSync(data.reply.slice(0, 420), 'ur', data.emotion || 'confident');
+        } else {
+          setAvatarState('idle');
+        }
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [sessionId, config.auto_speak, speakWithLipSync]
+  );
+
+  const handleDeleteKnowledge = useCallback(async (id: number) => {
+    const res = await fetch(`/api/study/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = (await res.json()) as { knowledge: KnowledgeSource[] };
+      setKnowledge(data.knowledge);
+    }
+  }, []);
+
+  const visionHandlerRef = useRef<(prompt?: string) => Promise<void>>(async () => {});
+  const camera = useCameraAwareness(autoWatchCamera, () => {
+    void visionHandlerRef.current('I waved or moved in front of the camera — acknowledge briefly!');
+  });
+
+  const handleCaptureVision = useCallback(
+    async (prompt?: string) => {
+      setErrorBanner(null);
+      if (!camera.isActive) {
+        const started = await camera.startCamera();
+        if (!started) {
+          setErrorBanner(
+            camera.error ||
+              'No webcam available on this device. Connect a camera or grant permission to use Vision Awareness.'
+          );
+          return;
+        }
+        // Let video metadata settle briefly before grabbing a frame
+        await new Promise((r) => setTimeout(r, 450));
+      }
+
+      const snapshot = camera.captureSnapshotBase64();
+      if (!snapshot) {
+        setErrorBanner('Camera stream is warming up — click "Look Now" again in a second.');
+        return;
+      }
+
+      setIsSending(true);
+      setAvatarState('thinking');
+      try {
+        const res = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: snapshot,
+            mimeType: 'image/jpeg',
+            userPrompt: prompt,
+            gestureHint: camera.lastGesture || undefined,
+            sessionId,
+          }),
+        });
+        const data = (await res.json()) as {
+          reply: string;
+          emotion: FacialEmotion;
+          language: 'en' | 'ur';
+          modelUsed: string;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(data.error || 'Vision request failed.');
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `vision-${Date.now()}`,
+            sessionId,
+            role: 'assistant',
+            content: data.reply,
+            emotion: data.emotion || 'curious',
+            language: data.language || 'ur',
+            timestamp: new Date().toISOString(),
+            modelUsed: data.modelUsed,
+            skillExecuted: 'vision_awareness',
+          },
+        ]);
+        if (config.auto_speak) {
+          await speakWithLipSync(data.reply, data.language || 'ur', data.emotion || 'curious');
+        } else {
+          setAvatarState('idle');
+        }
+      } catch (err) {
+        setErrorBanner(err instanceof Error ? err.message : 'Unable to analyze camera frame.');
+        setAvatarState('error');
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [camera, sessionId, config.auto_speak, speakWithLipSync]
+  );
+
+  useEffect(() => {
+    visionHandlerRef.current = handleCaptureVision;
+  }, [handleCaptureVision]);
+
+  const startVoiceListenRef = useRef<() => void>(() => {});
+
   const handleSendMessage = useCallback(
     async (explicitText?: string) => {
       const text = (explicitText ?? inputValue).trim();
       if (!text || isSending) return;
 
+      terminatedRef.current = false;
       stopAllSpeech();
       setLipOpenness(0);
       setLipWidth(0);
@@ -299,6 +654,12 @@ export default function App() {
 
         if (data.sideEffect?.type === 'open_url' && data.sideEffect.url) {
           setLaunchedUrl(data.sideEffect.url);
+        } else if (data.sideEffect?.type === 'open_study') {
+          setRequestedHubTab('study');
+        } else if (data.sideEffect?.type === 'trigger_vision') {
+          void handleCaptureVision(text);
+        } else if (data.sideEffect?.type === 'trigger_evolve') {
+          void handleEvolveCharacter();
         }
 
         const replyEmotion: FacialEmotion = data.emotion || 'calm';
@@ -328,6 +689,10 @@ export default function App() {
         } else {
           setAvatarState('idle');
         }
+
+        if (config.hands_free_mode && !terminatedRef.current && isSpeechRecognitionSupported()) {
+          startVoiceListenRef.current();
+        }
       } catch (err) {
         if (controller.signal.aborted) {
           setAvatarState('idle');
@@ -349,35 +714,13 @@ export default function App() {
       forceThinking,
       messages,
       config.auto_speak,
+      config.hands_free_mode,
       fetchState,
       speakWithLipSync,
+      handleCaptureVision,
+      handleEvolveCharacter,
     ]
   );
-
-  const startMicMeter = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 128;
-      source.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const loop = () => {
-        analyser.getByteFrequencyData(data);
-        let total = 0;
-        for (let i = 0; i < data.length; i++) total += data[i];
-        const norm = Math.min(1, total / data.length / 110);
-        setMicLevel(norm);
-        micRafRef.current = requestAnimationFrame(loop);
-      };
-      loop();
-    } catch {
-      setMicLevel(0.45);
-    }
-  }, []);
 
   const handleToggleListening = useCallback(() => {
     if (avatarState === 'listening') {
@@ -385,6 +728,7 @@ export default function App() {
       return;
     }
 
+    terminatedRef.current = false;
     stopAllSpeech();
     setLipOpenness(0);
     setLipWidth(0);
@@ -444,6 +788,10 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    startVoiceListenRef.current = handleToggleListening;
+  }, [handleToggleListening]);
+
+  useEffect(() => {
     if (!wakeWordActive) {
       if (wakeRecRef.current) {
         wakeRecRef.current.stop();
@@ -490,27 +838,11 @@ export default function App() {
     const nextId = `session-${Date.now()}`;
     setSessionId(nextId);
     setMessages([createGreetingMessage(nextId, config.assistant_name)]);
-    setAvatarEmotion('calm');
+    setAvatarEmotion(config.active_mood === 'auto' ? 'calm' : config.active_mood);
     setLaunchedUrl(null);
     setErrorBanner(null);
     setWarningBanner(null);
     setActivePage('home');
-  };
-
-  const handleSaveConfig = async (partial: Partial<AppConfig>) => {
-    const res = await fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(partial),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as {
-        config: AppConfig;
-        providerStatus?: ProviderStatus;
-      };
-      setConfig(data.config);
-      if (data.providerStatus) setProviderStatus(data.providerStatus);
-    }
   };
 
   const handleToggleSkill = async (id: number, is_enabled: boolean) => {
@@ -578,8 +910,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#060A12] text-slate-100">
+      <OfflineIndicator />
+
       {/* Top Bar — Strict 3-Zone Contract */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-8 border-b border-slate-800/80 bg-[#070D17] px-5">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-6 border-b border-slate-800/80 bg-[#070D17] px-5">
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
@@ -632,7 +966,10 @@ export default function App() {
           )}
         </nav>
 
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:block">
+            <PWAInstallButton compact onOpenLaptopTab={() => setActivePage('settings')} />
+          </div>
           <button
             type="button"
             onClick={handleNewSession}
@@ -646,7 +983,6 @@ export default function App() {
 
       {/* Main Workspace */}
       <div className="relative flex min-h-0 flex-1">
-        {/* Mobile Navigation Drawer */}
         {mobileNavOpen && (
           <aside
             aria-label="Mobile navigation"
@@ -682,12 +1018,12 @@ export default function App() {
           </aside>
         )}
 
-        {/* Active View Viewport */}
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#060A12]">
           {activePage === 'home' && (
             <HomeView
               config={config}
               providerStatus={providerStatus}
+              activeCharacter={activeCharacter}
               memories={memories}
               notes={notes}
               reminders={reminders}
@@ -703,16 +1039,25 @@ export default function App() {
               isSending={isSending}
               wakeWordActive={wakeWordActive}
               autoSpeak={config.auto_speak}
+              handsFreeMode={config.hands_free_mode}
+              autoWatchCamera={autoWatchCamera}
+              camera={camera}
+              requestedHubTab={requestedHubTab}
               errorBanner={errorBanner}
               warningBanner={warningBanner}
               onNavigate={setActivePage}
               onInputChange={setInputValue}
-              onSelectEmotion={setAvatarEmotion}
+              onSelectMood={(mood) => void handleSelectMood(mood)}
               onSendMessage={handleSendMessage}
               onToggleForceThinking={() => setForceThinking((v) => !v)}
               onToggleListening={handleToggleListening}
               onToggleWakeWord={() => setWakeWordActive((v) => !v)}
-              onToggleAutoSpeak={() => handleSaveConfig({ auto_speak: !config.auto_speak })}
+              onToggleAutoSpeak={() => void handleSaveConfig({ auto_speak: !config.auto_speak })}
+              onToggleHandsFree={() => void handleSaveConfig({ hands_free_mode: !config.hands_free_mode })}
+              onToggleAutoWatchCamera={() => setAutoWatchCamera((v) => !v)}
+              onCaptureVision={handleCaptureVision}
+              onAnalyzeStudy={handleAnalyzeStudy}
+              onEvolveCharacter={handleEvolveCharacter}
               onTerminate={handleTerminate}
               onReplayMessage={(msg) =>
                 void speakWithLipSync(msg.content, msg.language, msg.emotion || 'calm')
@@ -737,6 +1082,7 @@ export default function App() {
               memories={memories}
               notes={notes}
               reminders={reminders}
+              knowledge={knowledge}
               onAddMemory={async (input) => {
                 const res = await fetch('/api/memories', {
                   method: 'POST',
@@ -761,71 +1107,20 @@ export default function App() {
                   setMemories([]);
                 }
               }}
-              onAddNote={async (title, content) => {
-                const res = await fetch('/api/notes', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title, content }),
-                });
-                if (res.ok) {
-                  const data = (await res.json()) as { notes: NoteRecord[] };
-                  setNotes(data.notes);
-                }
-              }}
-              onDeleteNote={async (id) => {
-                const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
-                if (res.ok) {
-                  const data = (await res.json()) as { notes: NoteRecord[] };
-                  setNotes(data.notes);
-                }
-              }}
-              onAddReminder={async (title, remind_at) => {
-                const res = await fetch('/api/reminders', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title, remind_at }),
-                });
-                if (res.ok) {
-                  const data = (await res.json()) as { reminders: ReminderRecord[] };
-                  setReminders(data.reminders);
-                }
-              }}
-              onToggleReminder={async (id, is_done) => {
-                const res = await fetch(`/api/reminders/${id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ is_done }),
-                });
-                if (res.ok) {
-                  const data = (await res.json()) as { reminders: ReminderRecord[] };
-                  setReminders(data.reminders);
-                }
-              }}
-              onDeleteReminder={async (id) => {
-                const res = await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
-                if (res.ok) {
-                  const data = (await res.json()) as { reminders: ReminderRecord[] };
-                  setReminders(data.reminders);
-                }
-              }}
+              onAddNote={handleAddNote}
+              onDeleteNote={handleDeleteNote}
+              onAddReminder={handleAddReminder}
+              onToggleReminder={handleToggleReminder}
+              onDeleteReminder={handleDeleteReminder}
+              onDeleteKnowledge={handleDeleteKnowledge}
             />
           )}
 
           {activePage === 'skills' && (
             <SkillsView
               skills={skills}
-              onToggleSkill={async (id, is_enabled) => {
-                const res = await fetch(`/api/skills/${id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ is_enabled }),
-                });
-                if (res.ok) {
-                  setSkills((prev) =>
-                    prev.map((s) => (s.id === id ? { ...s, is_enabled } : s))
-                  );
-                }
-              }}
+              knowledge={knowledge}
+              onToggleSkill={handleToggleSkill}
               onCreateSkill={async (input: {
                 display_name: string;
                 description: string;
@@ -850,6 +1145,7 @@ export default function App() {
                   setSkills(data.skills);
                 }
               }}
+              onDeleteKnowledge={handleDeleteKnowledge}
               onTestSkill={(phrase) => {
                 setActivePage('home');
                 void handleSendMessage(phrase);
@@ -858,7 +1154,16 @@ export default function App() {
           )}
 
           {activePage === 'character' && (
-            <CharacterView config={config} onSaveConfig={handleSaveConfig} />
+            <CharacterView
+              config={config}
+              characters={characters}
+              activeCharacter={activeCharacter}
+              onSaveConfig={handleSaveConfig}
+              onSelectCharacter={handleSelectCharacter}
+              onCreateCharacter={handleCreateCharacter}
+              onDeleteCharacter={handleDeleteCharacter}
+              onEvolveCharacter={handleEvolveCharacter}
+            />
           )}
 
           {activePage === 'recent' && (

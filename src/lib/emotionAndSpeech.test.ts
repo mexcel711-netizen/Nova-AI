@@ -23,6 +23,8 @@ test('extractEmotionAndCleanText strips explicit emotion tags and detects fallba
   assert.equal(detectEmotionFromText('Let me think about this carefully.'), 'thoughtful');
   assert.equal(detectEmotionFromText('Absolutely, you can count on me.'), 'confident');
   assert.equal(detectEmotionFromText('That is unacceptable.'), 'angry');
+  assert.equal(detectEmotionFromText('Mujhe aapse bohat pyaar aur mohabbat hai, jaan.'), 'love');
+  assert.equal(extractEmotionAndCleanText('[emotion:love] Always here for you with warmth.').emotion, 'love');
 });
 
 test('splitSpeechChunks splits bilingual Urdu and English text cleanly on sentence boundaries', () => {

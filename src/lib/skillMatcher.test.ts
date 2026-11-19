@@ -138,3 +138,23 @@ test('isComplexThinkingQuery classifies deep reasoning prompts vs simple greetin
   );
   assert.equal(isComplexThinkingQuery('Is algorithm ki time complexity tafseel se samjhao'), true);
 });
+
+test('matchSkillCommand handles mood switch, character switch, and camera vision triggers', () => {
+  const loveRes = matchSkillCommand('love mode on karo', baseSkills);
+  assert.equal(loveRes.matched, true);
+  assert.equal(loveRes.skillName, 'mood_switcher');
+  assert.equal(loveRes.sideEffect?.mood, 'love');
+
+  const sadRes = matchSkillCommand('sad mode', baseSkills);
+  assert.equal(sadRes.matched, true);
+  assert.equal(sadRes.sideEffect?.mood, 'sad');
+
+  const charRes = matchSkillCommand('Select Zara', baseSkills);
+  assert.equal(charRes.matched, true);
+  assert.equal(charRes.sideEffect?.type, 'switch_character');
+  assert.equal(charRes.sideEffect?.characterSlug, 'zara');
+
+  const visionRes = matchSkillCommand('mujhe dekho camera se', baseSkills);
+  assert.equal(visionRes.matched, true);
+  assert.equal(visionRes.sideEffect?.type, 'trigger_vision');
+});

@@ -1,4 +1,5 @@
 import type { SkillConfig, SkillExecutionResult } from '../types/nova';
+import { resolveCharacterSwitchCommand, resolveMoodSwitchCommand } from './characterEngine';
 
 /**
  * Safely evaluates basic arithmetic expressions (+, -, *, /, %, parentheses)
@@ -137,6 +138,12 @@ export function detectUrduIntent(text: string): boolean {
     'shukriya',
     'madad',
     'tareekh',
+    'samjhao',
+    'dekho',
+    'pyaar',
+    'udaas',
+    'khush',
+    'kitaab',
   ];
   return romanUrduTokens.some((tok) => new RegExp(`\\b${tok}\\b`, 'i').test(lower));
 }
@@ -159,7 +166,13 @@ const KNOWN_APPS: Record<string, { label: string; url: string }> = {
 export function matchSkillCommand(
   rawInput: string,
   skills: SkillConfig[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  characters: Array<{ slug: string; name: string }> = [
+    { slug: 'nova', name: 'NOVA' },
+    { slug: 'zara', name: 'ZARA' },
+    { slug: 'ayesha', name: 'AYESHA' },
+    { slug: 'sara', name: 'SARA' },
+  ]
 ): SkillExecutionResult {
   const input = rawInput.trim();
   if (!input) return { matched: false };
@@ -204,7 +217,6 @@ export function matchSkillCommand(
         };
       }
       if (skill.action_type === 'ai') {
-        // AI custom skills enrich rather than bypass Gemini unless handled
         continue;
       }
       return {
@@ -226,7 +238,147 @@ export function matchSkillCommand(
     return found ? found.is_enabled : true;
   };
 
-  // 2. Time & Date skill
+  // 2. Mood Switcher Skill (Happy / Love / Sad / Calm / Surprised)
+  if (isEnabled('mood_switcher')) {
+    const moodSwitch = resolveMoodSwitchCommand(input);
+    if (moodSwitch) {
+      const moodReplies: Record<string, { ur: string; en: string; emotion: 'happy' | 'love' | 'sad' | 'calm' | 'surprised' }> = {
+        love: {
+          ur: 'لو موڈ آن ہو گیا ہے۔ اب میں دل سے، پیار اور محبت بھرے انداز میں آپ کے ساتھ بات کروں گی۔',
+          en: 'Love Mode activated. I am right here with warmth and heartfelt care.',
+          emotion: 'love',
+        },
+        sad: {
+          ur: 'سیڈ موڈ آن ہے۔ کوئی بات نہیں، میں آپ کی بات سکون اور ہمدردی سے سن رہی ہوں۔',
+          en: 'Sad Mode activated. Take your time — I am listening gently.',
+          emotion: 'sad',
+        },
+        happy: {
+          ur: 'ہیپی موڈ آن ہو گیا ہے! آج ہم مل کر زبردست کام کریں گے۔',
+          en: 'Happy Mode activated! Ready to bring great energy to everything we build.',
+          emotion: 'happy',
+        },
+        surprised: {
+          ur: 'حیران موڈ آن ہے! بتائیے آج کیا نیا کمال دیکھنا چاہتے ہیں؟',
+          en: 'Surprised Mode activated! Ready for something extraordinary.',
+          emotion: 'surprised',
+        },
+        calm: {
+          ur: 'پرسکون موڈ آن ہے۔',
+          en: 'Calm Mode activated.',
+          emotion: 'calm',
+        },
+        auto: {
+          ur: 'آٹو ایموشن موڈ آن ہے — اب میں گفتگو کے مطابق اپنے تاثرات خود بدلوں گی۔',
+          en: 'Auto Emotion Mode activated — I will adapt expressions naturally.',
+          emotion: 'calm',
+        },
+      };
+      const entry = moodReplies[moodSwitch] || moodReplies.calm;
+      return {
+        matched: true,
+        skillName: 'mood_switcher',
+        actionType: 'system',
+        language: isUrdu ? 'ur' : 'en',
+        emotion: entry.emotion,
+        responseText: isUrdu ? entry.ur : entry.en,
+        sideEffect: {
+          type: 'switch_mood',
+          mood: moodSwitch,
+        },
+      };
+    }
+  }
+
+  // 3. Character Switcher Skill
+  if (isEnabled('character_switcher')) {
+    const charMatch = resolveCharacterSwitchCommand(input, characters);
+    if (charMatch) {
+      return {
+        matched: true,
+        skillName: 'character_switcher',
+        actionType: 'system',
+        language: isUrdu ? 'ur' : 'en',
+        emotion: 'happy',
+        responseText: isUrdu
+          ? `${charMatch.name} کریکٹر اب ایکٹو ہو گیا ہے۔ میں نئے انداز میں آپ کی مدد کے لیے تیار ہوں۔`
+          : `Switched active character to ${charMatch.name}. Ready to continue.`,
+        sideEffect: {
+          type: 'switch_character',
+          characterSlug: charMatch.slug,
+        },
+      };
+    }
+  }
+
+  // 4. Camera Vision Awareness Skill
+  if (
+    isEnabled('vision_awareness') &&
+    (/\b(look at me|see me|what am i holding|check camera|inspect camera|watch my gesture)\b/i.test(lower) ||
+      /\b(mujhe dekho|camera dekho|mera ishara dekho|tasveer dekho)\b/i.test(lower) ||
+      /(مجھے دیکھو|کیمرہ دیکھو|میرا اشارہ دیکھو)/.test(input))
+  ) {
+    return {
+      matched: true,
+      skillName: 'vision_awareness',
+      actionType: 'vision',
+      language: isUrdu ? 'ur' : 'en',
+      emotion: 'curious',
+      responseText: isUrdu
+        ? 'جی، میں ابھی آپ کے کیمرے سے آپ کو اور آپ کے اشارے کو دیکھ رہی ہوں۔'
+        : 'Scanning your camera feed now to understand what you are showing me.',
+      sideEffect: {
+        type: 'trigger_vision',
+      },
+    };
+  }
+
+  // 5. Self-Development Trigger Skill
+  if (
+    isEnabled('self_evolve') &&
+    (/\b(develop yourself|self develop|evolve yourself|upgrade your character)\b/i.test(lower) ||
+      /\b(khud ko develop|khud ko upgrade|apna character barhao)\b/i.test(lower) ||
+      /(خود کو ڈویلپ|خود کو اپگریڈ)/.test(input))
+  ) {
+    return {
+      matched: true,
+      skillName: 'self_evolve',
+      actionType: 'evolve',
+      language: isUrdu ? 'ur' : 'en',
+      emotion: 'confident',
+      responseText: isUrdu
+        ? 'بہترین! میں آپ کی تمام گفتگو اور یادداشتوں کا جائزہ لے کر خود کو مزید بہتر اور ذہین بنا رہی ہوں۔'
+        : 'Analyzing our conversations and memories to evolve my traits and skills now.',
+      sideEffect: {
+        type: 'trigger_evolve',
+      },
+    };
+  }
+
+  // 6. Study / Book / Software / Course Reader Intent (when user asks to open Study Lab without body text)
+  if (
+    isEnabled('study_mentor') &&
+    input.length < 110 &&
+    (/\b(open study|study lab|read a book|read a course|read software)\b/i.test(lower) ||
+      /^(?:yeh |ye )?(?:book|kitaab|course|software) read (?:karo|kar lo)$/i.test(lower))
+  ) {
+    return {
+      matched: true,
+      skillName: 'study_mentor',
+      actionType: 'study',
+      language: isUrdu ? 'ur' : 'en',
+      emotion: 'curious',
+      responseText: isUrdu
+        ? 'اسٹڈی اینڈ کورس لیب کھل گئی ہے۔ آپ اپنی کتاب، سافٹ ویئر یا کورس کی فائل اپلوڈ کریں یا ٹیکسٹ پیسٹ کریں، میں تفصیل سے سمجھا کر آپ کا پلان بنا دوں گی۔'
+        : 'Study & Code Lab is open. Upload or paste your book, software docs, or course syllabus and I will break it down step by step.',
+      sideEffect: {
+        type: 'open_study',
+        studyTopic: input,
+      },
+    };
+  }
+
+  // 7. Time & Date skill
   if (
     isEnabled('time_date') &&
     (/\b(what time|current time|time is it|tell me the time|what'?s the time)\b/i.test(lower) ||
@@ -255,7 +407,7 @@ export function matchSkillCommand(
     };
   }
 
-  // 3. Calculator skill
+  // 8. Calculator skill
   if (isEnabled('calculator')) {
     const calcMatch = input.match(
       /(?:^|\b)(?:calc(?:ulate)?|compute|what is|kitna hota hai|hisaab)\s+([0-9+\-*/().%\s×÷,]+)(?:\?|$)/i
@@ -278,7 +430,7 @@ export function matchSkillCommand(
     }
   }
 
-  // 4. Create Note skill
+  // 9. Create Note skill
   if (isEnabled('notes_manager')) {
     const noteMatch =
       input.match(/^(?:create\s+a?\s*note|take\s+a?\s*note|add\s+note|note)\s*[:\-]?\s+(.+)$/i) ||
@@ -303,7 +455,7 @@ export function matchSkillCommand(
     }
   }
 
-  // 5. Reminder skill
+  // 10. Reminder skill
   if (isEnabled('reminders_manager')) {
     const reminderMatch =
       input.match(/^remind\s+me\s+(?:to\s+)?(.+?)(?:\s+(?:at|on|in)\s+(.+))?$/i) ||
@@ -311,10 +463,12 @@ export function matchSkillCommand(
     if (reminderMatch && reminderMatch[1].trim().length > 0) {
       const title = reminderMatch[1].trim();
       const whenRaw = reminderMatch[2]?.trim();
-      const remindAt = whenRaw || new Date(now.getTime() + 60 * 60 * 1000).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const remindAt =
+        whenRaw ||
+        new Date(now.getTime() + 60 * 60 * 1000).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
       return {
         matched: true,
         skillName: 'reminders_manager',
@@ -332,7 +486,7 @@ export function matchSkillCommand(
     }
   }
 
-  // 6. Web search skill
+  // 11. Web search skill
   if (isEnabled('web_search')) {
     const searchMatch =
       input.match(/^(?:search(?:\s+for)?|google|look\s+up)\s+(.+)$/i) ||
@@ -353,7 +507,7 @@ export function matchSkillCommand(
     }
   }
 
-  // 7. App / Website Launcher skill ("open chrome", "chrome kholo")
+  // 12. App / Website Launcher skill
   if (isEnabled('app_launcher')) {
     const openEn = input.match(/^(?:open|launch|start)\s+([a-z0-9.\-_ ]+)$/i);
     const openUr = input.match(/^([a-z0-9.\-_ ]+?)\s+(?:kholo|chalu\s+karo|open\s+karo)$/i);
@@ -366,9 +520,7 @@ export function matchSkillCommand(
           skillName: 'app_launcher',
           actionType: 'launch',
           language: isUrdu ? 'ur' : 'en',
-          responseText: isUrdu
-            ? `${known.label} khul gaya hai.`
-            : `Launching ${known.label}.`,
+          responseText: isUrdu ? `${known.label} khul gaya hai.` : `Launching ${known.label}.`,
           sideEffect: { type: 'open_url', url: known.url },
         };
       }
@@ -385,7 +537,7 @@ export function matchSkillCommand(
     }
   }
 
-  // 8. System control skill (volume, brightness, mute)
+  // 13. System control skill
   if (isEnabled('system_control')) {
     if (
       /\b(volume\s+(?:up|down)|mute|unmute|brightness\s+(?:up|down)|awaaz\s+(?:kam|zyada|band))\b/i.test(
@@ -410,7 +562,7 @@ export function matchSkillCommand(
 
 /**
  * Determines whether a prompt is a complex reasoning, architecture, debugging,
- * mathematical proof, or multi-step planning query suitable for Deep Thinking (gemini-4-carbon).
+ * book/course synthesis, or multi-step planning query suitable for Deep Thinking (gemini-4-carbon).
  */
 export function isComplexThinkingQuery(text: string): boolean {
   const lower = text.toLowerCase();
@@ -442,6 +594,10 @@ export function isComplexThinkingQuery(text: string): boolean {
     'design a system',
     'write a full',
     'security audit',
+    'book',
+    'course',
+    'software',
+    'syllabus',
   ];
   return complexKeywords.some((kw) => lower.includes(kw));
 }

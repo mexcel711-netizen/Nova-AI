@@ -2,14 +2,16 @@ import type { AiProviderPreference, FacialEmotion, ProviderStatus } from '../typ
 
 /**
  * Classifies facial expression from bilingual English, Urdu, and Roman Urdu text.
- * Also supports optional explicit `[emotion:happy|sad|surprised|calm|excited|empathetic|thoughtful|confident|angry|curious]` tag stripping.
+ * Supports explicit `[emotion:...]` tag stripping including `love`, `happy`, `sad`, `surprised`, `calm`.
  */
 export function extractEmotionAndCleanText(rawText: string): {
   cleanText: string;
   emotion: FacialEmotion;
 } {
   let cleanText = rawText.trim();
-  const tagMatch = cleanText.match(/^\[emotion:(happy|sad|surprised|calm|excited|empathetic|thoughtful|confident|angry|curious)\]\s*/i);
+  const tagMatch = cleanText.match(
+    /^\[emotion:(happy|love|sad|surprised|calm|excited|empathetic|thoughtful|confident|angry|curious)\]\s*/i
+  );
   if (tagMatch) {
     const tagged = tagMatch[1].toLowerCase() as FacialEmotion;
     cleanText = cleanText.slice(tagMatch[0].length).trim();
@@ -25,17 +27,84 @@ export function extractEmotionAndCleanText(rawText: string): {
 export function detectEmotionFromText(text: string): FacialEmotion {
   const lower = text.toLowerCase();
   const rules: Array<{ emotion: FacialEmotion; patterns: RegExp[] }> = [
-    { emotion: 'excited', patterns: [/\b(can't wait|so excited|fantastic|let's go|amazing news|woohoo)\b/i, /\b(zabardast|bohat khoob|kya baat)\b/i] },
-    { emotion: 'empathetic', patterns: [/\b(i understand|that sounds hard|i'm here for you|my heart goes out|take your time)\b/i, /\b(samajh sakti|fikr na karein|main saath hoon)\b/i] },
-    { emotion: 'thoughtful', patterns: [/\b(let me think|consider|on reflection|perhaps|it depends|here's why)\b/i, /\b(ghor karte|sochti hoon|aaiye samjhein)\b/i] },
-    { emotion: 'confident', patterns: [/\b(absolutely|certainly|definitely|you can count on me|i've got this)\b/i, /\b(bilkul|yaqeenan|zaroor|main kar sakti hoon)\b/i] },
-    { emotion: 'angry', patterns: [/\b(unacceptable|furious|outrageous|that's not okay)\b/i, /\b(na-insafi|ghalat baat|bardasht nahi)\b/i] },
-    { emotion: 'curious', patterns: [/\b(i wonder|interesting question|curious|let's explore|tell me more)\b/i, /\b(dilchasp|mazeed bataiye|jaanna chahti)\b/i] },
-    { emotion: 'surprised', patterns: [/\b(wow|whoa|incredible|unbelievable|shocking|really\?!|seriously\?|what a surprise)\b/i, /\b(hairan|kamaal|wah|arey wah|sach mein)\b/i, /(حیران|کمال|واہ|سچ میں)/, /!{2,}|\?!/] },
-    { emotion: 'sad', patterns: [/\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\b/i, /\b(afsos|maaf|maazrat|udaas|dukh|gham|pareshan|mushkil)\b/i, /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/] },
-    { emotion: 'happy', patterns: [/\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|love|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\b/i, /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/] },
+    {
+      emotion: 'love',
+      patterns: [
+        /\b(love you|i love|adore|sweetheart|darling|my heart|care deeply|always yours|affection|romantic)\b/i,
+        /\b(pyaar|pyar|mohabbat|ishq|dil se|jaan|azeez|chahat|bohat pyari)\b/i,
+        /(پیار|محبت|عشق|دل سے|عزیز|جان)/,
+      ],
+    },
+    {
+      emotion: 'excited',
+      patterns: [
+        /\b(can't wait|so excited|fantastic|let's go|amazing news|woohoo)\b/i,
+        /\b(zabardast|bohat khoob|kya baat)\b/i,
+      ],
+    },
+    {
+      emotion: 'empathetic',
+      patterns: [
+        /\b(i understand|that sounds hard|i'm here for you|my heart goes out|take your time)\b/i,
+        /\b(samajh sakti|fikr na karein|main saath hoon)\b/i,
+      ],
+    },
+    {
+      emotion: 'thoughtful',
+      patterns: [
+        /\b(let me think|consider|on reflection|perhaps|it depends|here's why)\b/i,
+        /\b(ghor karte|sochti hoon|aaiye samjhein)\b/i,
+      ],
+    },
+    {
+      emotion: 'confident',
+      patterns: [
+        /\b(absolutely|certainly|definitely|you can count on me|i've got this)\b/i,
+        /\b(bilkul|yaqeenan|zaroor|main kar sakti hoon)\b/i,
+      ],
+    },
+    {
+      emotion: 'angry',
+      patterns: [
+        /\b(unacceptable|furious|outrageous|that's not okay)\b/i,
+        /\b(na-insafi|ghalat baat|bardasht nahi)\b/i,
+      ],
+    },
+    {
+      emotion: 'curious',
+      patterns: [
+        /\b(i wonder|interesting question|curious|let's explore|tell me more)\b/i,
+        /\b(dilchasp|mazeed bataiye|jaanna chahti)\b/i,
+      ],
+    },
+    {
+      emotion: 'surprised',
+      patterns: [
+        /\b(wow|whoa|incredible|unbelievable|shocking|really\?!|seriously\?|what a surprise)\b/i,
+        /\b(hairan|kamaal|wah|arey wah|sach mein)\b/i,
+        /(حیران|کمال|واہ|سچ میں)/,
+        /!{2,}|\?!/,
+      ],
+    },
+    {
+      emotion: 'sad',
+      patterns: [
+        /\b(sorry|unfortunately|sad|regret|apologize|condolences|heartbreaking|miss you|worried|unable to|failed)\b/i,
+        /\b(afsos|maaf|maazrat|udaas|dukh|gham|pareshan|mushkil)\b/i,
+        /(افسوس|معذرت|اداس|دکھ|پریشان|معاف)/,
+      ],
+    },
+    {
+      emotion: 'happy',
+      patterns: [
+        /\b(assalamualaikum|walaikum assalam|hello|welcome|great|wonderful|happy|glad|congratulations|awesome|delighted|thank|shukriya|khushi|mubarak|behtareen|zabardast|shandar|khush)\b/i,
+        /(السلام علیکم|وعلیکم السلام|خوش|مبارک|شکریہ|بہترین|زبردست)/,
+      ],
+    },
   ];
-  for (const rule of rules) if (rule.patterns.some((pattern) => pattern.test(lower))) return rule.emotion;
+  for (const rule of rules) {
+    if (rule.patterns.some((pattern) => pattern.test(lower))) return rule.emotion;
+  }
   return 'calm';
 }
 
@@ -99,7 +168,10 @@ export function splitSpeechChunks(text: string, maxChars: number = 175): string[
 /**
  * Formats text with natural `<breath>` markers for Gemini 3.8 Neural TTS emotional pacing.
  */
-export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotion): {
+export function formatExpressiveSpeechPrompt(
+  text: string,
+  emotion: FacialEmotion
+): {
   textWithBreaths: string;
   styleInstruction: string;
 } {
@@ -109,6 +181,7 @@ export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotio
   const emotionStyles: Record<FacialEmotion, string> = {
     calm: 'Calm, composed, soothing Pakistani female voice with poised warmth.',
     happy: 'Warm, cheerful, smiling Pakistani female voice with gentle enthusiasm.',
+    love: 'Tender, affectionate, deeply caring and gentle Pakistani female voice filled with heartfelt warmth.',
     excited: 'Bright, energetic, delighted Pakistani female voice with lively but natural inflection.',
     sad: 'Soft, tender Pakistani female voice with gentle sadness and unhurried pacing.',
     empathetic: 'Deeply caring, reassuring Pakistani female voice with compassionate warmth.',
@@ -118,7 +191,8 @@ export function formatExpressiveSpeechPrompt(text: string, emotion: FacialEmotio
     surprised: 'Expressive, bright, intrigued Pakistani female voice with lively inflection.',
     curious: 'Engaged, inquisitive Pakistani female voice with an inviting upward lilt.',
   };
-  const emotionStyle = emotionStyles[emotion] || 'Calm, composed, soothing Pakistani female voice with poised warmth.';
+  const emotionStyle =
+    emotionStyles[emotion] || 'Calm, composed, soothing Pakistani female voice with poised warmth.';
 
   const styleInstruction = `${emotionStyle} Speak fluent Urdu with an authentic Pakistani accent and clear natural English when mixing languages. Maintain natural human speech rhythm and subtle breathing pauses.`;
 
@@ -149,8 +223,6 @@ export function resolveActiveAiProvider(params: {
     else if (hasCloudflareBinding) activeProvider = 'cloudflare-binding';
     else if (hasCloudflareRest) activeProvider = 'cloudflare-rest';
   } else {
-    // 'auto': Cloudflare Workers native AI binding activates automatically upon deploy;
-    // otherwise Google AI Studio key or Cloudflare REST is used seamlessly.
     if (hasCloudflareBinding) activeProvider = 'cloudflare-binding';
     else if (hasGoogleAiKey) activeProvider = 'google-ai-studio';
     else if (hasCloudflareRest) activeProvider = 'cloudflare-rest';

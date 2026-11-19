@@ -143,7 +143,7 @@ export function HolographicAvatar({
 
     // Smoothly interpolated emotion weights
     const emotionWeights: Record<FacialEmotion, number> = {
-      calm: 1, happy: 0, sad: 0, surprised: 0, excited: 0,
+      calm: 1, happy: 0, love: 0, sad: 0, surprised: 0, excited: 0,
       empathetic: 0, thoughtful: 0, confident: 0, angry: 0, curious: 0,
     };
 
@@ -206,25 +206,27 @@ export function HolographicAvatar({
       const palette =
         curState === 'error' || curEmotion === 'angry'
           ? { primary: '#FF4D6D', secondary: '#FB7185', glow: 'rgba(255,45,85,0.24)' }
-          : curEmotion === 'excited'
-            ? { primary: '#FBBF24', secondary: '#FB923C', glow: 'rgba(251,191,36,0.24)' }
-            : curEmotion === 'empathetic'
-              ? { primary: '#A78BFA', secondary: '#F0ABFC', glow: 'rgba(167,139,250,0.22)' }
-              : curEmotion === 'thoughtful'
-                ? { primary: '#818CF8', secondary: '#38BDF8', glow: 'rgba(129,140,248,0.22)' }
-                : curEmotion === 'confident'
-                  ? { primary: '#22D3EE', secondary: '#34D399', glow: 'rgba(34,211,238,0.22)' }
-                  : curEmotion === 'curious'
-                    ? { primary: '#C084FC', secondary: '#67E8F9', glow: 'rgba(192,132,252,0.24)' }
-                    : curEmotion === 'happy'
-                      ? { primary: '#00F5FF', secondary: '#10B981', glow: 'rgba(16,185,129,0.22)' }
-                      : curEmotion === 'sad'
-                        ? { primary: '#60A5FA', secondary: '#818CF8', glow: 'rgba(96,165,250,0.2)' }
-                        : curEmotion === 'surprised'
-                          ? { primary: '#22D3EE', secondary: '#38BDF8', glow: 'rgba(34,211,238,0.3)' }
-                          : curState === 'thinking'
-                            ? { primary: '#38BDF8', secondary: '#0066FF', glow: 'rgba(0,102,255,0.25)' }
-                            : { primary: '#00F5FF', secondary: '#0284C7', glow: 'rgba(0,245,255,0.2)' };
+          : curEmotion === 'love'
+            ? { primary: '#FB7185', secondary: '#F472B6', glow: 'rgba(244,63,94,0.26)' }
+            : curEmotion === 'excited'
+              ? { primary: '#FBBF24', secondary: '#FB923C', glow: 'rgba(251,191,36,0.24)' }
+              : curEmotion === 'empathetic'
+                ? { primary: '#A78BFA', secondary: '#F0ABFC', glow: 'rgba(167,139,250,0.22)' }
+                : curEmotion === 'thoughtful'
+                  ? { primary: '#818CF8', secondary: '#38BDF8', glow: 'rgba(129,140,248,0.22)' }
+                  : curEmotion === 'confident'
+                    ? { primary: '#22D3EE', secondary: '#34D399', glow: 'rgba(34,211,238,0.22)' }
+                    : curEmotion === 'curious'
+                      ? { primary: '#C084FC', secondary: '#67E8F9', glow: 'rgba(192,132,252,0.24)' }
+                      : curEmotion === 'happy'
+                        ? { primary: '#00F5FF', secondary: '#10B981', glow: 'rgba(16,185,129,0.22)' }
+                        : curEmotion === 'sad'
+                          ? { primary: '#60A5FA', secondary: '#818CF8', glow: 'rgba(96,165,250,0.2)' }
+                          : curEmotion === 'surprised'
+                            ? { primary: '#22D3EE', secondary: '#38BDF8', glow: 'rgba(34,211,238,0.3)' }
+                            : curState === 'thinking'
+                              ? { primary: '#38BDF8', secondary: '#0066FF', glow: 'rgba(0,102,255,0.25)' }
+                              : { primary: '#00F5FF', secondary: '#0284C7', glow: 'rgba(0,245,255,0.2)' };
 
       // Ambient holographic aura
       const aura = ctx.createRadialGradient(cx, cy, 40, cx, cy, 166);
@@ -270,6 +272,22 @@ export function HolographicAvatar({
       }
       ctx.globalAlpha = 1;
 
+      // Subtle rose-gold warmth motes during Love Mode
+      if (emotionWeights.love > 0.08 && !prefersReducedMotion) {
+        ctx.save();
+        for (let i = 0; i < 6; i++) {
+          const a = phase * 0.55 + (i * Math.PI) / 3;
+          const dist = 148 + Math.sin(phase * 1.6 + i) * 7;
+          const mx = cx + Math.cos(a) * dist;
+          const my = cy + Math.sin(a) * dist;
+          ctx.fillStyle = `rgba(251, 113, 133, ${0.42 * emotionWeights.love})`;
+          ctx.beginPath();
+          ctx.arc(mx, my, 2.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
       // Rotating precision holographic arcs
       ctx.strokeStyle = palette.primary;
       ctx.lineWidth = 1.8;
@@ -307,18 +325,19 @@ export function HolographicAvatar({
         const px = (nx: number) => drawX + nx * drawSize;
         const py = (ny: number) => drawY + ny * drawSize;
 
-        // 2. Emotional facial subtleties (cheek warmth, eye smile, sad mood)
-        if (emotionWeights.happy + emotionWeights.excited > 0.05) {
+        // 2. Emotional facial subtleties (cheek warmth, love blush, eye smile, sad mood)
+        const warmWeight = emotionWeights.happy + emotionWeights.excited + emotionWeights.love * 1.25;
+        if (warmWeight > 0.05) {
           ctx.save();
-          ctx.globalAlpha = Math.min(0.24, (emotionWeights.happy + emotionWeights.excited) * 0.18);
-          const cheekL = ctx.createRadialGradient(px(0.385), py(0.455), 2, px(0.385), py(0.455), 20);
-          cheekL.addColorStop(0, 'rgba(255, 142, 124, 0.85)');
+          ctx.globalAlpha = Math.min(0.28, warmWeight * 0.19);
+          const cheekL = ctx.createRadialGradient(px(0.385), py(0.455), 2, px(0.385), py(0.455), 22);
+          cheekL.addColorStop(0, emotionWeights.love > 0.2 ? 'rgba(244, 114, 182, 0.92)' : 'rgba(255, 142, 124, 0.85)');
           cheekL.addColorStop(1, 'rgba(255, 142, 124, 0)');
           ctx.fillStyle = cheekL;
           ctx.fillRect(px(0.28), py(0.38), 60, 50);
 
-          const cheekR = ctx.createRadialGradient(px(0.625), py(0.455), 2, px(0.625), py(0.455), 20);
-          cheekR.addColorStop(0, 'rgba(255, 142, 124, 0.85)');
+          const cheekR = ctx.createRadialGradient(px(0.625), py(0.455), 2, px(0.625), py(0.455), 22);
+          cheekR.addColorStop(0, emotionWeights.love > 0.2 ? 'rgba(244, 114, 182, 0.92)' : 'rgba(255, 142, 124, 0.85)');
           cheekR.addColorStop(1, 'rgba(255, 142, 124, 0)');
           ctx.fillStyle = cheekR;
           ctx.fillRect(px(0.53), py(0.38), 60, 50);
@@ -339,7 +358,9 @@ export function HolographicAvatar({
         );
         const mouthCenterX = px(0.506);
         const mouthSeamY = py(0.529);
-        const cornerShift = (emotionWeights.happy + emotionWeights.excited) * -2.2 + (emotionWeights.sad + emotionWeights.empathetic) * 2.0;
+        const cornerShift =
+          (emotionWeights.happy + emotionWeights.excited + emotionWeights.love * 0.95) * -2.2 +
+          (emotionWeights.sad + emotionWeights.empathetic) * 2.0;
 
         if (effectiveMouthOpen > 0.02) {
           const halfW =

@@ -1,6 +1,19 @@
 export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
-export type FacialEmotion = 'calm' | 'happy' | 'sad' | 'surprised' | 'excited' | 'empathetic' | 'thoughtful' | 'confident' | 'angry' | 'curious';
+export type FacialEmotion =
+  | 'calm'
+  | 'happy'
+  | 'love'
+  | 'sad'
+  | 'surprised'
+  | 'excited'
+  | 'empathetic'
+  | 'thoughtful'
+  | 'confident'
+  | 'angry'
+  | 'curious';
+
+export type MoodMode = 'auto' | 'happy' | 'love' | 'sad' | 'calm' | 'surprised';
 
 export type SidebarPage =
   | 'home'
@@ -42,7 +55,51 @@ export interface MemoryRecord {
   updated_at: string;
 }
 
-export type SkillActionType = 'launch' | 'url' | 'system' | 'ai' | 'note' | 'reminder' | 'calc';
+export interface CharacterProfile {
+  id: number;
+  slug: string;
+  name: string;
+  role_title: string;
+  bio: string;
+  personality: ResponseStyle;
+  default_mood: MoodMode;
+  tts_voice: string;
+  system_prompt: string;
+  learned_traits: string[];
+  life_journal: string[];
+  bond_level: number;
+  xp: number;
+  is_active: boolean;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type KnowledgeKind = 'book' | 'software' | 'course';
+
+export interface KnowledgeSource {
+  id: number;
+  kind: KnowledgeKind;
+  title: string;
+  goal: string;
+  source_excerpt: string;
+  detailed_summary: string;
+  action_plan: string[];
+  created_at: string;
+}
+
+export type SkillActionType =
+  | 'launch'
+  | 'url'
+  | 'system'
+  | 'ai'
+  | 'note'
+  | 'reminder'
+  | 'calc'
+  | 'study'
+  | 'vision'
+  | 'evolve'
+  | 'desktop';
 
 export interface SkillConfig {
   id: number;
@@ -99,6 +156,10 @@ export interface AppConfig {
   deep_thinking_mode: 'auto' | 'always' | 'manual';
   default_model: 'gemini-4-hydrogen' | 'gemini-4-carbon';
   ai_provider: AiProviderPreference;
+  active_mood: MoodMode;
+  active_character_id: number;
+  hands_free_mode: boolean;
+  camera_awareness_enabled: boolean;
 }
 
 export interface SkillExecutionResult {
@@ -109,13 +170,26 @@ export interface SkillExecutionResult {
   language?: 'en' | 'ur';
   emotion?: FacialEmotion;
   sideEffect?: {
-    type: 'open_url' | 'create_note' | 'create_reminder' | 'system_action' | 'none';
+    type:
+      | 'open_url'
+      | 'create_note'
+      | 'create_reminder'
+      | 'system_action'
+      | 'switch_mood'
+      | 'switch_character'
+      | 'trigger_vision'
+      | 'trigger_evolve'
+      | 'open_study'
+      | 'none';
     url?: string;
     noteTitle?: string;
     noteContent?: string;
     reminderTitle?: string;
     reminderAt?: string;
     systemCommand?: string;
+    mood?: MoodMode;
+    characterSlug?: string;
+    studyTopic?: string;
   };
 }
 
@@ -130,6 +204,11 @@ export interface ChatApiResponse {
   skillExecuted?: string;
   sideEffect?: SkillExecutionResult['sideEffect'];
   extractedMemories?: Array<{ category: MemoryRecord['category']; key: string; value: string }>;
+  characterUpdate?: {
+    bondLevel: number;
+    xp: number;
+    newTrait?: string;
+  };
   warning?: string;
 }
 

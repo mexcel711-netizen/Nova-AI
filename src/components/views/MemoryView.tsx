@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { CheckCircle2, Circle, Plus, Search, Trash2 } from 'lucide-react';
 import { filterMemories, isTodayIso } from '../../lib/memoryExtractor';
-import type { MemoryRecord, NoteRecord, ReminderRecord } from '../../types/nova';
+import type { KnowledgeSource, MemoryRecord, NoteRecord, ReminderRecord } from '../../types/nova';
 import { ConfirmDialog } from '../ConfirmDialog';
 
 interface MemoryViewProps {
   memories: MemoryRecord[];
   notes: NoteRecord[];
   reminders: ReminderRecord[];
+  knowledge: KnowledgeSource[];
   onAddMemory: (input: {
     category: MemoryRecord['category'];
     key: string;
@@ -20,14 +21,16 @@ interface MemoryViewProps {
   onAddReminder: (title: string, remindAt: string) => Promise<void>;
   onToggleReminder: (id: number, isDone: boolean) => Promise<void>;
   onDeleteReminder: (id: number) => Promise<void>;
+  onDeleteKnowledge: (id: number) => Promise<void>;
 }
 
-type MemoryTab = 'all' | 'today' | 'notes' | 'reminders';
+type MemoryTab = 'all' | 'today' | 'notes' | 'reminders' | 'studied';
 
 export function MemoryView({
   memories,
   notes,
   reminders,
+  knowledge,
   onAddMemory,
   onDeleteMemory,
   onClearAllMemories,
@@ -36,6 +39,7 @@ export function MemoryView({
   onAddReminder,
   onToggleReminder,
   onDeleteReminder,
+  onDeleteKnowledge,
 }: MemoryViewProps) {
   const [activeTab, setActiveTab] = useState<MemoryTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +91,17 @@ export function MemoryView({
         r.title.toLowerCase().includes(q) || r.remind_at.toLowerCase().includes(q)
     );
   }, [reminders, searchQuery]);
+
+  const filteredKnowledge = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return knowledge;
+    return knowledge.filter(
+      (k) =>
+        k.title.toLowerCase().includes(q) ||
+        k.detailed_summary.toLowerCase().includes(q) ||
+        k.goal.toLowerCase().includes(q)
+    );
+  }, [knowledge, searchQuery]);
 
   const handleCreateMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +158,7 @@ export function MemoryView({
         <div>
           <h1 className="font-display text-2xl font-semibold text-white">Memory Vault</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Review and manage long-term facts, daily notes, and active reminders stored in SQLite.
+            Review and manage long-term facts, daily notes, active reminders, and studied material in SQLite.
           </p>
         </div>
         {memories.length > 0 && (
@@ -159,13 +174,14 @@ export function MemoryView({
 
       {/* Tabs + Search */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-[#0D1117] p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-[#0D1117] p-1">
           {(
             [
               { id: 'all', label: `All Memories (${memories.length})` },
               { id: 'today', label: 'Short-Term Today' },
               { id: 'notes', label: `Notes (${notes.length})` },
               { id: 'reminders', label: `Reminders (${reminders.length})` },
+              { id: 'studied', label: `Studied (${knowledge.length})` },
             ] as const
           ).map((tab) => (
             <button
@@ -482,6 +498,55 @@ export function MemoryView({
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'studied' && (
+          <div className="space-y-3">
+            {filteredKnowledge.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-800 bg-[#0D1117]/50 px-6 py-12 text-center">
+                <p className="text-sm font-medium text-slate-300">No studied sources yet</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Open Home &rarr; Neural Hub &rarr; Study &amp; Code to let NOVA read any book, software, or course.
+                </p>
+              </div>
+            ) : (
+              filteredKnowledge.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-slate-800 bg-[#0D1117] p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                      <p className="mt-0.5 text-xs uppercase tracking-wide text-cyan-400">
+                        {item.kind} {item.goal ? `· Goal: ${item.goal}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Delete studied item "${item.title}"`}
+                      onClick={() => void onDeleteKnowledge(item.id)}
+                      className="rounded-md p-1.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-slate-300" dir="auto">
+                    {item.detailed_summary}
+                  </p>
+                  {item.action_plan.length > 0 && (
+                    <ol className="mt-3 space-y-1 border-t border-slate-800/80 pt-3 text-xs text-slate-300">
+                      {item.action_plan.map((step, idx) => (
+                        <li key={idx}>
+                          {idx + 1}. {step}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              ))
             )}
           </div>
         )}

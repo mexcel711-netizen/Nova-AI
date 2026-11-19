@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Play, Plus, Trash2, X } from 'lucide-react';
-import type { SkillActionType, SkillConfig } from '../../types/nova';
+import { BookOpen, Play, Plus, Trash2, X } from 'lucide-react';
+import type { KnowledgeSource, SkillActionType, SkillConfig } from '../../types/nova';
 
 interface SkillsViewProps {
   skills: SkillConfig[];
+  knowledge: KnowledgeSource[];
   onToggleSkill: (id: number, isEnabled: boolean) => Promise<void>;
   onCreateSkill: (input: {
     display_name: string;
@@ -13,14 +14,17 @@ interface SkillsViewProps {
     action_value: string;
   }) => Promise<void>;
   onDeleteSkill: (id: number) => Promise<void>;
+  onDeleteKnowledge: (id: number) => Promise<void>;
   onTestSkill: (phrase: string) => void;
 }
 
 export function SkillsView({
   skills,
+  knowledge,
   onToggleSkill,
   onCreateSkill,
   onDeleteSkill,
+  onDeleteKnowledge,
   onTestSkill,
 }: SkillsViewProps) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -73,12 +77,14 @@ export function SkillsView({
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col px-6 py-6">
+    <div className="mx-auto flex h-full max-w-5xl flex-col overflow-y-auto px-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-white">Skills &amp; Automation</h1>
+          <h1 className="font-display text-2xl font-semibold text-white">
+            Skills, Study Knowledge &amp; Automation
+          </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Configure built-in bilingual voice commands or define custom trigger automations.
+            Manage built-in &amp; custom voice skills alongside Books, Software, and Courses NOVA has read.
           </p>
         </div>
         <button
@@ -99,10 +105,7 @@ export function SkillsView({
           <h2 className="text-sm font-semibold text-white">Create Custom Skill</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label
-                htmlFor="skill-name-input"
-                className="block text-xs font-medium text-slate-300"
-              >
+              <label htmlFor="skill-name-input" className="block text-xs font-medium text-slate-300">
                 Skill Name
               </label>
               <input
@@ -116,10 +119,7 @@ export function SkillsView({
             </div>
 
             <div>
-              <label
-                htmlFor="skill-action-type"
-                className="block text-xs font-medium text-slate-300"
-              >
+              <label htmlFor="skill-action-type" className="block text-xs font-medium text-slate-300">
                 Action Type
               </label>
               <select
@@ -135,10 +135,7 @@ export function SkillsView({
             </div>
 
             <div>
-              <label
-                htmlFor="skill-triggers-input"
-                className="block text-xs font-medium text-slate-300"
-              >
+              <label htmlFor="skill-triggers-input" className="block text-xs font-medium text-slate-300">
                 Trigger Phrases (comma-separated)
               </label>
               <input
@@ -152,10 +149,7 @@ export function SkillsView({
             </div>
 
             <div>
-              <label
-                htmlFor="skill-action-value"
-                className="block text-xs font-medium text-slate-300"
-              >
+              <label htmlFor="skill-action-value" className="block text-xs font-medium text-slate-300">
                 Action Target
               </label>
               <input
@@ -173,10 +167,7 @@ export function SkillsView({
             </div>
 
             <div className="sm:col-span-2">
-              <label
-                htmlFor="skill-desc-input"
-                className="block text-xs font-medium text-slate-300"
-              >
+              <label htmlFor="skill-desc-input" className="block text-xs font-medium text-slate-300">
                 Description (optional)
               </label>
               <input
@@ -211,91 +202,156 @@ export function SkillsView({
         </form>
       )}
 
-      <div className="mt-5 flex-1 overflow-y-auto pr-1">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {skills.map((skill) => {
-            const sampleTrigger = skill.trigger_phrases[0] || skill.display_name;
-            return (
+      {/* Studied Books / Software / Courses Library */}
+      {knowledge.length > 0 && (
+        <section className="mt-5" aria-label="Studied books, software, and courses">
+          <h2 className="font-display text-xs font-semibold uppercase tracking-wider text-cyan-300">
+            Studied Books, Software &amp; Courses ({knowledge.length})
+          </h2>
+          <div className="mt-2.5 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {knowledge.map((item) => (
               <div
-                key={skill.id}
-                className="flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0D1117] p-5"
+                key={item.id}
+                className="flex flex-col justify-between rounded-xl border border-cyan-500/25 bg-[#0D1117] p-4"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="text-base font-semibold text-white">{skill.display_name}</h3>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
-                        <span>{skill.is_custom ? 'Custom' : 'Built-in'}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="capitalize">Type: {skill.action_type}</span>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-cyan-400 shrink-0" />
+                        <h3 className="truncate text-sm font-semibold text-white">{item.title}</h3>
                       </div>
+                      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-slate-400">
+                        {item.kind} {item.goal ? `· Goal: ${item.goal}` : ''}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={skill.is_enabled}
-                        aria-label={`Toggle ${skill.display_name}`}
-                        onClick={() => onToggleSkill(skill.id, !skill.is_enabled)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
-                          skill.is_enabled
-                            ? 'border-cyan-400 bg-cyan-400/20'
-                            : 'border-slate-700 bg-slate-900'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-                            skill.is_enabled
-                              ? 'translate-x-5 bg-cyan-400'
-                              : 'translate-x-1 bg-slate-500'
-                          }`}
-                        />
-                      </button>
-                      {skill.is_custom && (
-                        <button
-                          type="button"
-                          aria-label={`Delete custom skill "${skill.display_name}"`}
-                          onClick={() => onDeleteSkill(skill.id)}
-                          className="rounded-md p-1 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Delete studied item "${item.title}"`}
+                      onClick={() => void onDeleteKnowledge(item.id)}
+                      className="rounded p-1 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-300">{skill.description}</p>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
-                  <p className="truncate text-xs text-slate-500">
-                    Triggers: {skill.trigger_phrases.join(' · ')}
+                  <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-300" dir="auto">
+                    {item.detailed_summary}
                   </p>
+                  {item.action_plan.length > 0 && (
+                    <ul className="mt-2 space-y-1 border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">
+                      {item.action_plan.slice(0, 3).map((step, i) => (
+                        <li key={i} className="truncate">
+                          {i + 1}. {step}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="mt-3 flex justify-end border-t border-slate-800/80 pt-2.5">
                   <button
                     type="button"
-                    disabled={!skill.is_enabled}
                     onClick={() =>
                       onTestSkill(
-                        skill.skill_name === 'calculator'
-                          ? 'calculate 24 * 15'
-                          : skill.skill_name === 'notes_manager'
-                            ? 'create note: Skill verification test'
-                            : skill.skill_name === 'reminders_manager'
-                              ? 'remind me to check logs at 7pm'
-                              : skill.skill_name === 'app_launcher'
-                                ? 'Chrome kholo'
-                                : sampleTrigger
+                        `Explain the next practical step from "${item.title}"${
+                          item.goal ? ` for my goal: ${item.goal}` : ''
+                        }`
                       )
                     }
-                    className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 transition-colors hover:text-cyan-300 disabled:opacity-40 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 hover:text-cyan-300"
                   >
                     <Play className="h-3 w-3" />
-                    <span>Test</span>
+                    <span>Discuss in Chat</span>
                   </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+        {skills.map((skill) => {
+          const sampleTrigger = skill.trigger_phrases[0] || skill.display_name;
+          return (
+            <div
+              key={skill.id}
+              className="flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0D1117] p-5"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-white">{skill.display_name}</h3>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                      <span>{skill.is_custom ? 'Custom' : 'Built-in'}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="capitalize">Type: {skill.action_type}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={skill.is_enabled}
+                      aria-label={`Toggle ${skill.display_name}`}
+                      onClick={() => onToggleSkill(skill.id, !skill.is_enabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
+                        skill.is_enabled
+                          ? 'border-cyan-400 bg-cyan-400/20'
+                          : 'border-slate-700 bg-slate-900'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                          skill.is_enabled
+                            ? 'translate-x-5 bg-cyan-400'
+                            : 'translate-x-1 bg-slate-500'
+                        }`}
+                      />
+                    </button>
+                    {skill.is_custom && (
+                      <button
+                        type="button"
+                        aria-label={`Delete custom skill "${skill.display_name}"`}
+                        onClick={() => onDeleteSkill(skill.id)}
+                        className="rounded-md p-1 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-slate-300">{skill.description}</p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
+                <p className="truncate text-xs text-slate-500">
+                  Triggers: {skill.trigger_phrases.join(' · ')}
+                </p>
+                <button
+                  type="button"
+                  disabled={!skill.is_enabled}
+                  onClick={() =>
+                    onTestSkill(
+                      skill.skill_name === 'calculator'
+                        ? 'calculate 24 * 15'
+                        : skill.skill_name === 'notes_manager'
+                          ? 'create note: Skill verification test'
+                          : skill.skill_name === 'reminders_manager'
+                            ? 'remind me to check logs at 7pm'
+                            : skill.skill_name === 'app_launcher'
+                              ? 'Chrome kholo'
+                              : sampleTrigger
+                    )
+                  }
+                  className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 transition-colors hover:text-cyan-300 disabled:opacity-40 whitespace-nowrap shrink-0"
+                >
+                  <Play className="h-3 w-3" />
+                  <span>Test</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

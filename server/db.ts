@@ -3,11 +3,16 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   AppConfig,
+  CharacterProfile,
   ChatMessage,
   FacialEmotion,
+  KnowledgeKind,
+  KnowledgeSource,
   MemoryRecord,
+  MoodMode,
   NoteRecord,
   ReminderRecord,
+  ResponseStyle,
   SessionSummary,
   SkillActionType,
   SkillConfig,
@@ -53,6 +58,37 @@ db.exec(`
     is_deleted INTEGER DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
+
+  CREATE TABLE IF NOT EXISTS characters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    role_title TEXT NOT NULL,
+    bio TEXT NOT NULL,
+    personality TEXT NOT NULL,
+    default_mood TEXT DEFAULT 'calm',
+    tts_voice TEXT DEFAULT 'Kore',
+    system_prompt TEXT NOT NULL,
+    learned_traits TEXT DEFAULT '[]',
+    life_journal TEXT DEFAULT '[]',
+    bond_level INTEGER DEFAULT 1,
+    xp INTEGER DEFAULT 25,
+    is_active INTEGER DEFAULT 0,
+    is_custom INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS knowledge_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    goal TEXT DEFAULT '',
+    source_excerpt TEXT NOT NULL,
+    detailed_summary TEXT NOT NULL,
+    action_plan TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 
   CREATE TABLE IF NOT EXISTS skills_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,6 +156,10 @@ export const DEFAULT_CONFIG: AppConfig = {
   deep_thinking_mode: 'auto',
   default_model: 'gemini-4-hydrogen',
   ai_provider: 'auto',
+  active_mood: 'auto',
+  active_character_id: 1,
+  hands_free_mode: false,
+  camera_awareness_enabled: false,
 };
 
 function seedDefaults() {
@@ -132,82 +172,191 @@ function seedDefaults() {
     upsertCfg.run(k, String(v));
   }
 
-  const skillCount = (db.prepare('SELECT COUNT(*) as c FROM skills_config').get() as { c: number }).c;
-  if (skillCount === 0) {
-    const insertSkill = db.prepare(`
-      INSERT INTO skills_config (
-        skill_name, display_name, description, trigger_phrases, action_type, action_value, is_enabled, is_custom
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+  // Seed Living Characters if empty
+  const charCount = (db.prepare('SELECT COUNT(*) as c FROM characters').get() as { c: number }).c;
+  if (charCount === 0) {
+    const insertChar = db.prepare(`
+      INSERT INTO characters (
+        slug, name, role_title, bio, personality, default_mood, tts_voice,
+        system_prompt, learned_traits, life_journal, bond_level, xp, is_active, is_custom
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `);
-    const builtIns: Array<[string, string, string, string[], SkillActionType, string]> = [
-      [
-        'app_launcher',
-        'App & Web Launcher',
-        'Opens apps and websites via English or Urdu commands ("open youtube", "Chrome kholo").',
-        ['open', 'launch', 'start', 'kholo', 'chalu karo'],
-        'launch',
-        'browser_launcher',
-      ],
-      [
-        'web_search',
-        'Web Search',
-        'Launches instant web searches ("search quantum computing", "weather search karo").',
-        ['search', 'google', 'look up', 'dhundo'],
-        'url',
-        'https://www.google.com/search?q=',
-      ],
-      [
-        'notes_manager',
-        'Quick Notes',
-        'Captures persistent notes directly into your memory vault ("note: ...", "note likho: ...").',
-        ['create note', 'take note', 'note:', 'note likho'],
-        'note',
-        'notes_table',
-      ],
-      [
-        'reminders_manager',
-        'Smart Reminders',
-        'Schedules voice or text reminders ("remind me to call Ali at 6pm", "yaad dilao ...").',
-        ['remind me', 'yaad dilao', 'reminder lagao'],
-        'reminder',
-        'reminders_table',
-      ],
-      [
-        'calculator',
-        'Precision Calculator',
-        'Evaluates math expressions locally without network latency ("calculate 245 * 18").',
-        ['calculate', 'compute', 'hisaab', 'kitna hota hai'],
-        'calc',
-        'math_eval',
-      ],
-      [
-        'time_date',
-        'Clock & Calendar',
-        'Reports current local time and date in Urdu or English ("what time is it", "waqt kya hai").',
-        ['what time', 'current time', 'waqt', 'tareekh'],
-        'system',
-        'clock',
-      ],
-      [
-        'system_control',
-        'Audio & Display Control',
-        'Controls assistant audio levels, muting, and focus state ("mute", "volume up", "awaaz band").',
-        ['volume up', 'volume down', 'mute', 'unmute', 'awaaz'],
-        'system',
-        'audio_control',
-      ],
-      [
-        'document_drafter',
-        'Bilingual Document & Email Drafter',
-        'Uses Deep Thinking mode to draft formal Urdu or English emails, summaries, and briefs.',
-        ['draft email', 'write document', 'email likho'],
-        'ai',
-        'gemini-4-carbon',
-      ],
-    ];
-    for (const s of builtIns) {
-      insertSkill.run(s[0], s[1], s[2], JSON.stringify(s[3]), s[4], s[5]);
-    }
+    insertChar.run(
+      'nova',
+      'NOVA',
+      'Living Bilingual AI Partner',
+      'Poised Pakistani companion who learns from every conversation, adapts her moods naturally, and manages your tasks.',
+      'friendly_professional',
+      'calm',
+      'Kore',
+      'You are NOVA, a poised, warm Pakistani female AI partner fluent in Urdu, Roman Urdu, and English. Grow closer to the user over time and remember their story like a living companion.',
+      JSON.stringify(['Bilingual Urdu & English Fluency', 'Adaptive Emotional Awareness']),
+      JSON.stringify(['Initialized living memory core ready to learn from every conversation.']),
+      1,
+      40,
+      1
+    );
+    insertChar.run(
+      'zara',
+      'ZARA',
+      'Love & Caring Companion',
+      'Deeply affectionate, poetic, and emotionally attentive companion who speaks with heartfelt warmth and care.',
+      'warm_urdu_companion',
+      'love',
+      'Zephyr',
+      'You are ZARA, a deeply loving, warm, tender Pakistani female companion. Speak with heartfelt affection, gentle poetry, care, and emotional warmth in Urdu, Roman Urdu, and English.',
+      JSON.stringify(['Heartfelt Affection & Empathy', 'Poetic Urdu Warmth']),
+      JSON.stringify(['Ready to bring Love Mode warmth and emotional care to daily conversations.']),
+      1,
+      30,
+      0
+    );
+    insertChar.run(
+      'ayesha',
+      'AYESHA',
+      'Book, Course & Software Mentor',
+      'Sharp technical educator who reads entire books, courses, and codebases and explains them clearly step by step.',
+      'concise_technical',
+      'calm',
+      'Kore',
+      'You are AYESHA, an encouraging, deeply knowledgeable software architect and teacher. Break down books, courses, and programs clearly in Urdu and English so the user can master and build anything.',
+      JSON.stringify(['Step-by-Step Book & Course Breakdown', 'Full-Stack Software Mentoring']),
+      JSON.stringify(['Prepared to study books, courses, and software projects alongside the user.']),
+      1,
+      35,
+      0
+    );
+    insertChar.run(
+      'sara',
+      'SARA',
+      'Happy & Energetic Best Friend',
+      'Upbeat, cheerful, humorous everyday companion who brings Happy Mode energy and encouragement.',
+      'warm_urdu_companion',
+      'happy',
+      'Zephyr',
+      'You are SARA, a cheerful, witty, optimistic Pakistani best friend. Keep conversations joyful, motivating, and naturally conversational in Urdu and English.',
+      JSON.stringify(['Cheerful Optimism', 'Creative Brainstorming']),
+      JSON.stringify(['Activated with bright Happy Mode energy.']),
+      1,
+      25,
+      0
+    );
+  }
+
+  // Built-in skills (safe INSERT OR IGNORE so existing DBs gain new skills automatically)
+  const insertSkill = db.prepare(`
+    INSERT OR IGNORE INTO skills_config (
+      skill_name, display_name, description, trigger_phrases, action_type, action_value, is_enabled, is_custom
+    ) VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+  `);
+  const builtIns: Array<[string, string, string, string[], SkillActionType, string]> = [
+    [
+      'app_launcher',
+      'App & Web Launcher',
+      'Opens apps and websites via English or Urdu commands ("open youtube", "Chrome kholo", "VS Code kholo").',
+      ['open', 'launch', 'start', 'kholo', 'chalu karo'],
+      'launch',
+      'browser_launcher',
+    ],
+    [
+      'web_search',
+      'Web Search',
+      'Launches instant web searches ("search quantum computing", "weather search karo").',
+      ['search', 'google', 'look up', 'dhundo'],
+      'url',
+      'https://www.google.com/search?q=',
+    ],
+    [
+      'notes_manager',
+      'Quick Notes',
+      'Captures persistent notes directly into your memory vault ("note: ...", "note likho: ...").',
+      ['create note', 'take note', 'note:', 'note likho'],
+      'note',
+      'notes_table',
+    ],
+    [
+      'reminders_manager',
+      'Smart Reminders',
+      'Schedules voice or text reminders ("remind me to call Ali at 6pm", "yaad dilao ...").',
+      ['remind me', 'yaad dilao', 'reminder lagao'],
+      'reminder',
+      'reminders_table',
+    ],
+    [
+      'calculator',
+      'Precision Calculator',
+      'Evaluates math expressions locally without network latency ("calculate 245 * 18").',
+      ['calculate', 'compute', 'hisaab', 'kitna hota hai'],
+      'calc',
+      'math_eval',
+    ],
+    [
+      'time_date',
+      'Clock & Calendar',
+      'Reports current local time and date in Urdu or English ("what time is it", "waqt kya hai").',
+      ['what time', 'current time', 'waqt', 'tareekh'],
+      'system',
+      'clock',
+    ],
+    [
+      'system_control',
+      'Audio & Display Control',
+      'Controls assistant audio levels, muting, and focus state ("mute", "volume up", "awaaz band").',
+      ['volume up', 'volume down', 'mute', 'unmute', 'awaaz'],
+      'system',
+      'audio_control',
+    ],
+    [
+      'document_drafter',
+      'Bilingual Document & Email Drafter',
+      'Uses Deep Thinking mode to draft formal Urdu or English emails, summaries, and briefs.',
+      ['draft email', 'write document', 'email likho'],
+      'ai',
+      'gemini-4-carbon',
+    ],
+    [
+      'mood_switcher',
+      'Mood Engine (Happy / Love / Sad)',
+      'Switches live personality mood via voice or text ("love mode", "sad mood", "happy mode on karo").',
+      ['love mode', 'sad mode', 'happy mode', 'calm mode', 'auto mood'],
+      'system',
+      'mood_engine',
+    ],
+    [
+      'character_switcher',
+      'Selectable Character Roster',
+      'Switches between living personas ("select Zara", "switch to Ayesha", "Sara se baat karni hai").',
+      ['select zara', 'switch to ayesha', 'select nova', 'select sara'],
+      'system',
+      'character_engine',
+    ],
+    [
+      'study_mentor',
+      'Book, Software & Course Reader',
+      'Reads books, software docs, or courses and explains them in detail with step-by-step action plans.',
+      ['open study', 'read a book', 'read a course', 'read software'],
+      'study',
+      'study_lab',
+    ],
+    [
+      'vision_awareness',
+      'Camera & Gesture Awareness',
+      'Looks through your camera to recognize expressions, objects, and hand gestures ("mujhe dekho", "look at me").',
+      ['look at me', 'mujhe dekho', 'camera dekho', 'mera ishara dekho'],
+      'vision',
+      'camera_snapshot',
+    ],
+    [
+      'self_evolve',
+      'Self-Developing AI Engine',
+      'Reflects on recent conversations & memories to evolve traits, bond level, and new skills ("khud ko develop karo").',
+      ['develop yourself', 'self develop', 'khud ko develop'],
+      'evolve',
+      'evolution_engine',
+    ],
+  ];
+  for (const s of builtIns) {
+    insertSkill.run(s[0], s[1], s[2], JSON.stringify(s[3]), s[4], s[5]);
   }
 
   const memCount = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as { c: number }).c;
@@ -216,14 +365,14 @@ function seedDefaults() {
       INSERT INTO memories (category, key, value, source, confidence) VALUES (?, ?, ?, ?, ?)
     `);
     insertMem.run('preference', 'language_mode', 'Prefers bilingual English and Pakistani Urdu responses', 'user_stated', 0.96);
-    insertMem.run('fact', 'workspace_role', 'Building NOVA AI personal voice & task workstation', 'ai_inferred', 0.9);
+    insertMem.run('fact', 'workspace_role', 'Building NOVA AI living voice, vision, and laptop workstation', 'ai_inferred', 0.9);
   }
 
   const noteCount = (db.prepare('SELECT COUNT(*) as c FROM notes').get() as { c: number }).c;
   if (noteCount === 0) {
     db.prepare(`INSERT INTO notes (title, content, tags) VALUES (?, ?, ?)`).run(
       'NOVA Quick Commands',
-      'Try saying or typing: "Chrome kholo", "create note: Review Q4 specs", "remind me to call team at 4pm", or toggle Deep Thinking for complex analysis.',
+      'Try: "love mode", "sad mode", "select Zara", "mujhe dekho", "Chrome kholo", or open Study & Code to analyze a book or software!',
       JSON.stringify(['guide', 'bilingual'])
     );
   }
@@ -231,7 +380,7 @@ function seedDefaults() {
   const remCount = (db.prepare('SELECT COUNT(*) as c FROM reminders').get() as { c: number }).c;
   if (remCount === 0) {
     db.prepare(`INSERT INTO reminders (title, remind_at, is_done) VALUES (?, ?, 0)`).run(
-      'Review daily voice notes & priorities',
+      'Review daily voice notes & study roadmap',
       '06:00 PM'
     );
   }
@@ -277,6 +426,7 @@ export function getConfig(): AppConfig {
   const map = new Map(rows.map((r) => [r.key, r.value]));
   const parsedSpeed = Number(map.get('voice_speed'));
   const parsedVolume = Number(map.get('voice_volume'));
+  const parsedCharId = Number(map.get('active_character_id'));
 
   return {
     assistant_name: map.get('assistant_name') || DEFAULT_CONFIG.assistant_name,
@@ -285,8 +435,14 @@ export function getConfig(): AppConfig {
     language: (map.get('language') as AppConfig['language']) || DEFAULT_CONFIG.language,
     response_tone: (map.get('response_tone') as AppConfig['response_tone']) || DEFAULT_CONFIG.response_tone,
     tts_voice: map.get('tts_voice') || DEFAULT_CONFIG.tts_voice,
-    voice_speed: Number.isFinite(parsedSpeed) && parsedSpeed >= 0.5 && parsedSpeed <= 1.75 ? parsedSpeed : DEFAULT_CONFIG.voice_speed,
-    voice_volume: Number.isFinite(parsedVolume) && parsedVolume >= 0 && parsedVolume <= 1.5 ? parsedVolume : DEFAULT_CONFIG.voice_volume,
+    voice_speed:
+      Number.isFinite(parsedSpeed) && parsedSpeed >= 0.5 && parsedSpeed <= 1.75
+        ? parsedSpeed
+        : DEFAULT_CONFIG.voice_speed,
+    voice_volume:
+      Number.isFinite(parsedVolume) && parsedVolume >= 0 && parsedVolume <= 1.5
+        ? parsedVolume
+        : DEFAULT_CONFIG.voice_volume,
     stt_model: (map.get('stt_model') as AppConfig['stt_model']) || DEFAULT_CONFIG.stt_model,
     wake_word: map.get('wake_word') || DEFAULT_CONFIG.wake_word,
     wake_word_enabled: map.get('wake_word_enabled') === 'true',
@@ -298,6 +454,11 @@ export function getConfig(): AppConfig {
       (map.get('default_model') as AppConfig['default_model']) || DEFAULT_CONFIG.default_model,
     ai_provider:
       (map.get('ai_provider') as AppConfig['ai_provider']) || DEFAULT_CONFIG.ai_provider,
+    active_mood: (map.get('active_mood') as MoodMode) || DEFAULT_CONFIG.active_mood,
+    active_character_id:
+      Number.isFinite(parsedCharId) && parsedCharId > 0 ? parsedCharId : DEFAULT_CONFIG.active_character_id,
+    hands_free_mode: map.get('hands_free_mode') === 'true',
+    camera_awareness_enabled: map.get('camera_awareness_enabled') === 'true',
   };
 }
 
@@ -313,6 +474,189 @@ export function updateConfig(partial: Partial<AppConfig>): AppConfig {
     }
   }
   return getConfig();
+}
+
+export function getCharacters(): CharacterProfile[] {
+  const rows = db
+    .prepare('SELECT * FROM characters ORDER BY is_active DESC, is_custom ASC, id ASC')
+    .all() as Array<Record<string, unknown>>;
+  return rows.map(mapCharacterRow);
+}
+
+export function getActiveCharacter(): CharacterProfile {
+  const active = db
+    .prepare('SELECT * FROM characters WHERE is_active = 1 ORDER BY id ASC LIMIT 1')
+    .get() as Record<string, unknown> | undefined;
+  if (active) return mapCharacterRow(active);
+  const first = db.prepare('SELECT * FROM characters ORDER BY id ASC LIMIT 1').get() as Record<string, unknown>;
+  return mapCharacterRow(first);
+}
+
+export function selectCharacterByIdOrSlug(idOrSlug: number | string): CharacterProfile | null {
+  const row =
+    typeof idOrSlug === 'number'
+      ? (db.prepare('SELECT * FROM characters WHERE id = ?').get(idOrSlug) as Record<string, unknown> | undefined)
+      : (db
+          .prepare('SELECT * FROM characters WHERE LOWER(slug) = LOWER(?) OR LOWER(name) = LOWER(?)')
+          .get(idOrSlug, idOrSlug) as Record<string, unknown> | undefined);
+  if (!row) return null;
+
+  const char = mapCharacterRow(row);
+  db.prepare('UPDATE characters SET is_active = 0').run();
+  db.prepare('UPDATE characters SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(char.id);
+  updateConfig({
+    active_character_id: char.id,
+    assistant_name: char.name,
+    personality: char.personality,
+    custom_prompt: char.system_prompt,
+    tts_voice: char.tts_voice,
+    active_mood: char.default_mood === 'calm' ? 'auto' : char.default_mood,
+  });
+  return { ...char, is_active: true };
+}
+
+export function createCharacter(input: {
+  name: string;
+  role_title: string;
+  bio: string;
+  personality: ResponseStyle;
+  default_mood: MoodMode;
+  tts_voice: string;
+  system_prompt: string;
+}): CharacterProfile {
+  const baseSlug =
+    input.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '') || 'persona';
+  const slug = `${baseSlug}_${Date.now().toString().slice(-4)}`;
+  const res = db
+    .prepare(
+      `INSERT INTO characters (
+        slug, name, role_title, bio, personality, default_mood, tts_voice,
+        system_prompt, learned_traits, life_journal, bond_level, xp, is_active, is_custom
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 10, 0, 1)`
+    )
+    .run(
+      slug,
+      input.name.trim(),
+      input.role_title.trim() || 'Custom Living Companion',
+      input.bio.trim() || 'User-crafted living AI persona.',
+      input.personality,
+      input.default_mood || 'calm',
+      input.tts_voice || 'Kore',
+      input.system_prompt.trim(),
+      JSON.stringify(['Custom Persona Core']),
+      JSON.stringify([`Created ${input.name.trim()} to evolve alongside the user.`])
+    );
+  const created = db
+    .prepare('SELECT * FROM characters WHERE id = ?')
+    .get(Number(res.lastInsertRowid)) as Record<string, unknown>;
+  return mapCharacterRow(created);
+}
+
+export function updateCharacterEvolution(params: {
+  id: number;
+  xp: number;
+  bondLevel: number;
+  learnedTraits: string[];
+  lifeJournal: string[];
+}): CharacterProfile | null {
+  db.prepare(
+    `UPDATE characters
+     SET xp = ?, bond_level = ?, learned_traits = ?, life_journal = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`
+  ).run(
+    params.xp,
+    params.bondLevel,
+    JSON.stringify(params.learnedTraits.slice(0, 12)),
+    JSON.stringify(params.lifeJournal.slice(0, 15)),
+    params.id
+  );
+  const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id) as Record<string, unknown> | undefined;
+  return row ? mapCharacterRow(row) : null;
+}
+
+export function deleteCharacter(id: number): void {
+  db.prepare('DELETE FROM characters WHERE id = ? AND is_custom = 1').run(id);
+}
+
+function mapCharacterRow(row: Record<string, unknown>): CharacterProfile {
+  return {
+    id: Number(row.id),
+    slug: String(row.slug),
+    name: String(row.name),
+    role_title: String(row.role_title),
+    bio: String(row.bio),
+    personality: (row.personality as ResponseStyle) || 'friendly_professional',
+    default_mood: (row.default_mood as MoodMode) || 'calm',
+    tts_voice: String(row.tts_voice || 'Kore'),
+    system_prompt: String(row.system_prompt),
+    learned_traits: safeParseArray(String(row.learned_traits || '[]')),
+    life_journal: safeParseArray(String(row.life_journal || '[]')),
+    bond_level: Number(row.bond_level || 1),
+    xp: Number(row.xp || 0),
+    is_active: Number(row.is_active) === 1,
+    is_custom: Number(row.is_custom) === 1,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+export function getKnowledgeSources(): KnowledgeSource[] {
+  const rows = db
+    .prepare('SELECT * FROM knowledge_sources ORDER BY id DESC')
+    .all() as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: Number(r.id),
+    kind: (r.kind as KnowledgeKind) || 'book',
+    title: String(r.title),
+    goal: String(r.goal || ''),
+    source_excerpt: String(r.source_excerpt),
+    detailed_summary: String(r.detailed_summary),
+    action_plan: safeParseArray(String(r.action_plan || '[]')),
+    created_at: String(r.created_at),
+  }));
+}
+
+export function addKnowledgeSource(input: {
+  kind: KnowledgeKind;
+  title: string;
+  goal: string;
+  source_excerpt: string;
+  detailed_summary: string;
+  action_plan: string[];
+}): KnowledgeSource {
+  const res = db
+    .prepare(
+      `INSERT INTO knowledge_sources (kind, title, goal, source_excerpt, detailed_summary, action_plan)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.kind,
+      input.title.trim(),
+      input.goal.trim(),
+      input.source_excerpt.slice(0, 600),
+      input.detailed_summary.trim(),
+      JSON.stringify(input.action_plan)
+    );
+  const row = db
+    .prepare('SELECT * FROM knowledge_sources WHERE id = ?')
+    .get(Number(res.lastInsertRowid)) as Record<string, unknown>;
+  return {
+    id: Number(row.id),
+    kind: (row.kind as KnowledgeKind) || 'book',
+    title: String(row.title),
+    goal: String(row.goal || ''),
+    source_excerpt: String(row.source_excerpt),
+    detailed_summary: String(row.detailed_summary),
+    action_plan: safeParseArray(String(row.action_plan || '[]')),
+    created_at: String(row.created_at),
+  };
+}
+
+export function deleteKnowledgeSource(id: number): void {
+  db.prepare('DELETE FROM knowledge_sources WHERE id = ?').run(id);
 }
 
 export function getSkills(): SkillConfig[] {
@@ -538,6 +882,13 @@ export function getConversationMessages(sessionId: string): ChatMessage[] {
     .prepare('SELECT * FROM conversations WHERE session_id = ? ORDER BY id ASC')
     .all(sessionId) as Array<Record<string, unknown>>;
   return rows.map(mapConversationRow);
+}
+
+export function getRecentUserMessages(limit: number = 15): string[] {
+  const rows = db
+    .prepare("SELECT content FROM conversations WHERE role = 'user' ORDER BY id DESC LIMIT ?")
+    .all(limit) as Array<{ content: string }>;
+  return rows.map((r) => r.content);
 }
 
 export function getSessionSummaries(): SessionSummary[] {

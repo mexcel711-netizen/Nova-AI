@@ -21,6 +21,10 @@ test('extractMemoriesFromUtterance extracts English and Roman Urdu facts', () =>
     ur.some((m) => m.category === 'preference' && m.value.includes('Urdu poetry')),
     true
   );
+
+  const goals = extractMemoriesFromUtterance('I am a software engineer and I want to build a voice app.');
+  assert.equal(goals.some((m) => m.key === 'user_role' && m.value.includes('software engineer')), true);
+  assert.equal(goals.some((m) => m.key === 'user_goal' && m.value.includes('a voice app')), true);
 });
 
 test('filterMemories filters by category and search query', () => {

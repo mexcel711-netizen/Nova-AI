@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Mic, Play, Square, Trash2 } from 'lucide-react';
+import { Check, Copy, Download, Mic, Play, Share2, Square, Trash2 } from 'lucide-react';
 import { speakText, stopAllSpeech } from '../../lib/voiceService';
 import type { AiProviderPreference, AppConfig, ProviderStatus } from '../../types/nova';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { DesktopBridgePanel } from '../DesktopBridgePanel';
+import { PWAInstallButton } from '../PWAInstallButton';
 
 interface SettingsViewProps {
   config: AppConfig;
@@ -12,7 +14,7 @@ interface SettingsViewProps {
   onClearAllMemories: () => Promise<void>;
 }
 
-type SettingsTab = 'ai' | 'voice' | 'mic' | 'privacy';
+type SettingsTab = 'ai' | 'voice' | 'mic' | 'laptop' | 'privacy';
 
 const VOICE_OPTIONS = [
   { id: 'Kore', label: 'Kore — Expressive Pakistani Urdu & English Female (Default)' },
@@ -33,6 +35,7 @@ export function SettingsView({
   const [draft, setDraft] = useState<AppConfig>(config);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState(false);
 
   const [micTesting, setMicTesting] = useState(false);
@@ -132,13 +135,22 @@ export function SettingsView({
     });
   };
 
+  const shareUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const copyShareUrl = async () => {
+    if (!shareUrl || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2500);
+  };
+
   return (
     <div className="mx-auto flex h-full max-w-4xl flex-col overflow-y-auto px-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
         <div>
           <h1 className="font-display text-2xl font-semibold text-white">Settings</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Configure AI provider routing, Pakistani Urdu neural voice speed &amp; volume, and privacy.
+            Configure AI provider routing, Pakistani Urdu neural voice, laptop installer, and privacy.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -166,6 +178,7 @@ export function SettingsView({
             { id: 'ai', label: 'AI & Deployment' },
             { id: 'voice', label: 'Urdu Neural Voice' },
             { id: 'mic', label: 'Wake Word & Mic' },
+            { id: 'laptop', label: 'Laptop & Installer' },
             { id: 'privacy', label: 'Privacy & Data' },
           ] as const
         ).map((tab) => (
@@ -425,6 +438,35 @@ export function SettingsView({
 
             <div className="flex items-center justify-between gap-4 border-t border-slate-800/80 pt-4">
               <div>
+                <p className="text-sm font-medium text-white">Hands-Free Continuous Voice Loop</p>
+                <p className="text-xs text-slate-400">
+                  Automatically resume listening right after NOVA finishes speaking a response.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draft.hands_free_mode}
+                aria-label="Toggle hands-free voice loop"
+                onClick={() => setDraft({ ...draft, hands_free_mode: !draft.hands_free_mode })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
+                  draft.hands_free_mode
+                    ? 'border-cyan-400 bg-cyan-400/20'
+                    : 'border-slate-700 bg-slate-900'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                    draft.hands_free_mode
+                      ? 'translate-x-5 bg-cyan-400'
+                      : 'translate-x-1 bg-slate-500'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-slate-800/80 pt-4">
+              <div>
                 <p className="text-sm font-medium text-white">Microphone Input Test</p>
                 <p className="text-xs text-slate-400">
                   Verify your browser microphone signal level in real time.
@@ -457,6 +499,76 @@ export function SettingsView({
               </div>
               {micTestError && <p className="text-xs text-rose-400">{micTestError}</p>}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'laptop' && (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-slate-800 bg-[#0D1117] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">
+                    Installable App &amp; Shareable Laptop Package
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Install NOVA directly onto your laptop/desktop, or share the link &amp; setup script so anyone can run it on their own computer.
+                  </p>
+                </div>
+                <PWAInstallButton />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-[#111827] p-3">
+                <Share2 className="h-4 w-4 text-cyan-400 shrink-0" />
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-200">
+                  {shareUrl || 'https://your-nova-app-url'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void copyShareUrl()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20 whitespace-nowrap shrink-0"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>{copiedUrl ? 'Link Copied' : 'Copy Share Link'}</span>
+                </button>
+              </div>
+
+              <div className="mt-4 border-t border-slate-800/80 pt-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  1-Click Laptop Companion Installers (Full Local OS Control)
+                </h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Download and run the installer on any Windows, macOS, or Linux laptop (requires Node.js 18+) to unlock VS Code, Terminal, Chrome tabs, Downloads/Desktop folder access, and local speech.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2.5">
+                  <a
+                    href="/api/desktop/installer?os=win"
+                    download="NOVA-Desktop-Setup.bat"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400 px-3.5 py-2 text-xs font-semibold text-slate-950 transition-colors hover:bg-cyan-300"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Windows Installer (.bat)</span>
+                  </a>
+                  <a
+                    href="/api/desktop/installer?os=unix"
+                    download="nova-desktop-setup.sh"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3.5 py-2 text-xs font-medium text-cyan-200 transition-colors hover:bg-cyan-500/20"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Mac / Linux Installer (.sh)</span>
+                  </a>
+                  <a
+                    href="/api/desktop/installer?os=agent"
+                    download="nova-agent.mjs"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-cyan-500/40"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Direct Agent (.mjs)</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <DesktopBridgePanel />
           </div>
         )}
 
