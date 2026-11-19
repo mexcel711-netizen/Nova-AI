@@ -220,3 +220,107 @@ body {
     transition: none;
   }
 }
+
+
+/* NOVA / Stonic-inspired immersive desktop command centre */
+:root {
+  --nova-panel-strong: rgba(5, 10, 18, 0.94);
+  --nova-border-soft: rgba(120, 170, 195, 0.16);
+  --nova-glow: 0 0 32px rgba(0, 210, 255, 0.08);
+}
+
+body {
+  background-color: #03060b;
+  background-image:
+    radial-gradient(ellipse at 48% 34%, rgba(0, 181, 220, 0.105), transparent 34%),
+    radial-gradient(ellipse at 12% 78%, rgba(0, 110, 150, 0.07), transparent 32%),
+    radial-gradient(ellipse at 90% 14%, rgba(32, 74, 120, 0.07), transparent 28%),
+    linear-gradient(145deg, #03060b 0%, #070d16 50%, #03060b 100%);
+  background-attachment: fixed;
+}
+
+/* The three persistent workspaces mirror the reference's world / character / voice layout. */
+[aria-label="Core context and live intelligence"],
+[aria-label="Assistant command stage"],
+[aria-label="Assistant transcript and workspace"] {
+  min-width: 0;
+  border-color: var(--nova-border-soft);
+}
+
+[aria-label="Core context and live intelligence"] > div,
+[aria-label="Assistant command stage"] > div,
+[aria-label="Assistant transcript and workspace"] {
+  border-color: rgba(105, 180, 205, 0.19);
+  box-shadow: var(--nova-glow);
+}
+
+[aria-label="Core context and live intelligence"] > div {
+  background:
+    linear-gradient(155deg, rgba(12, 24, 37, 0.96), rgba(5, 11, 20, 0.98));
+  border-radius: 15px;
+}
+
+[aria-label="Assistant command stage"] > div:first-child {
+  background:
+    radial-gradient(ellipse at 70% 38%, rgba(0, 184, 224, 0.09), transparent 42%),
+    linear-gradient(150deg, rgba(8, 18, 30, 0.98), rgba(4, 9, 17, 0.99));
+  border-radius: 18px;
+  box-shadow: 0 0 55px rgba(0, 195, 235, 0.07), inset 0 1px rgba(255,255,255,0.025);
+}
+
+[aria-label="Assistant command stage"] > div:first-child > div:first-child {
+  gap: clamp(14px, 2vw, 28px);
+}
+
+[aria-label="Assistant command stage"] button,
+[aria-label="Core context and live intelligence"] button,
+[aria-label="Assistant transcript and workspace"] button {
+  outline-offset: 3px;
+}
+
+[aria-label="Assistant command stage"] button:focus-visible,
+[aria-label="Core context and live intelligence"] button:focus-visible,
+[aria-label="Assistant transcript and workspace"] button:focus-visible {
+  outline: 2px solid rgba(83, 231, 255, 0.85);
+}
+
+[aria-label="Assistant transcript and workspace"] {
+  background:
+    linear-gradient(180deg, rgba(8, 17, 29, 0.98), rgba(4, 9, 17, 0.99));
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+[aria-label="Assistant transcript and workspace"] > div:first-child {
+  background: rgba(6, 14, 24, 0.94);
+}
+
+[aria-label="Core context and live intelligence"] h3,
+[aria-label="Assistant command stage"] h3,
+[aria-label="Assistant transcript and workspace"] [role="tab"] {
+  letter-spacing: 0.075em;
+}
+
+@media (min-width: 1280px) {
+  [aria-label="Core context and live intelligence"] {
+    scrollbar-width: thin;
+  }
+
+  [aria-label="Assistant command stage"] {
+    scrollbar-width: thin;
+  }
+}
+
+@media (max-width: 1023px) {
+  [aria-label="Assistant command stage"] {
+    order: 1;
+  }
+
+  [aria-label="Core context and live intelligence"] {
+    order: 2;
+  }
+
+  [aria-label="Assistant transcript and workspace"] {
+    order: 3;
+  }
+}
