@@ -7,19 +7,23 @@ import {
   CameraOff,
   CheckCircle2,
   Circle,
+  Cpu,
+  Database,
   Eye,
   Heart,
   Laptop,
   Mic,
   MicOff,
   Plus,
+  Power,
   Radio,
   Repeat,
   Send,
+  Settings as SettingsIcon,
   Sparkles,
-  Square,
   Trash2,
   Upload,
+  UserCheck,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -118,15 +122,6 @@ const MOOD_OPTIONS: Array<{ id: MoodMode; label: string }> = [
   { id: 'love', label: 'Love' },
   { id: 'sad', label: 'Sad' },
   { id: 'surprised', label: 'Surprised' },
-];
-
-const RADAR_CLUSTERS: Array<{ x: number; y: number; tone: 'cyan' | 'emerald' | 'amber'; label: string }> = [
-  { x: 46, y: 42, tone: 'cyan', label: 'US-West' },
-  { x: 74, y: 48, tone: 'cyan', label: 'US-East' },
-  { x: 132, y: 38, tone: 'emerald', label: 'EU-Central' },
-  { x: 174, y: 54, tone: 'amber', label: 'PK-South' },
-  { x: 204, y: 60, tone: 'cyan', label: 'Asia-East' },
-  { x: 224, y: 92, tone: 'emerald', label: 'AP-South' },
 ];
 
 const MAP_GRID_DOTS: Array<[number, number]> = [
@@ -432,40 +427,69 @@ export function HomeView({
           </div>
         </div>
 
-        {/* Cybernetic Global Edge & Node Map */}
-        <div className="rounded-xl border border-cyan-500/20 bg-[#070E1A] p-3">
+        {/* YOUR WORLD: Circular Glowing 3D Cyan Earth Globe */}
+        <div className="rounded-xl border border-cyan-500/20 bg-[#050C17] p-3">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-slate-300">
-              AI Mesh Topology
+              Your World
             </h3>
             <span className="text-[11px] font-mono text-cyan-400 tabular-nums">
-              {providerStatus.cloudflareBindingActive ? 'CF-Edge' : 'Local'}
+              {providerStatus.cloudflareBindingActive ? 'CF-Edge' : 'Live'}
             </span>
           </div>
 
-          <div className="mt-2 overflow-hidden rounded-lg border border-slate-800/90 bg-[#050A14] p-1.5">
-            <svg viewBox="0 0 260 120" className="h-20 w-full" aria-label="Global AI edge topology map">
-              <line x1="0" y1="60" x2="260" y2="60" stroke="#1E293B" strokeWidth="0.6" strokeDasharray="3 3" />
-              <line x1="130" y1="0" x2="130" y2="120" stroke="#1E293B" strokeWidth="0.6" strokeDasharray="3 3" />
-              {MAP_GRID_DOTS.map(([dx, dy], idx) => (
-                <circle key={idx} cx={dx} cy={dy} r="1.4" fill="#1E3A5F" />
-              ))}
-              <path d="M74 48 Q105 24 132 38 T174 54 T204 60" fill="none" stroke="#00F5FF" strokeOpacity="0.35" strokeWidth="1" />
-              <path d="M132 38 Q168 78 224 92" fill="none" stroke="#10B981" strokeOpacity="0.28" strokeWidth="1" />
-              {RADAR_CLUSTERS.map((node) => {
-                const color =
-                  node.tone === 'emerald' ? '#10B981' : node.tone === 'amber' ? '#F59E0B' : '#00F5FF';
-                return (
-                  <g key={node.label}>
-                    <circle cx={node.x} cy={node.y} r="7" fill={color} fillOpacity="0.16" />
-                    <circle cx={node.x} cy={node.y} r="2.6" fill={color} />
-                  </g>
-                );
+          <div className="mt-1.5 flex items-center justify-center py-0.5">
+            <svg viewBox="0 0 180 124" className="h-[104px] w-full" aria-label="Glowing global intelligence globe">
+              <defs>
+                <radialGradient id="globeGlow" cx="50%" cy="46%" r="50%">
+                  <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.34" />
+                  <stop offset="68%" stopColor="#0891B2" stopOpacity="0.14" />
+                  <stop offset="100%" stopColor="#030A13" stopOpacity="0" />
+                </radialGradient>
+                <radialGradient id="globeSphere" cx="42%" cy="34%" r="62%">
+                  <stop offset="0%" stopColor="#0E3A53" stopOpacity="0.95" />
+                  <stop offset="55%" stopColor="#061D30" stopOpacity="0.96" />
+                  <stop offset="100%" stopColor="#030C17" stopOpacity="1" />
+                </radialGradient>
+              </defs>
+              {/* Atmospheric Halo */}
+              <circle cx="90" cy="62" r="56" fill="url(#globeGlow)" />
+              <circle cx="90" cy="62" r="46" fill="url(#globeSphere)" stroke="#22D3EE" strokeOpacity="0.45" strokeWidth="1.2" />
+              {/* Latitude & Longitude Wireframes */}
+              <ellipse cx="90" cy="62" rx="46" ry="16" fill="none" stroke="#22D3EE" strokeOpacity="0.18" strokeWidth="0.8" />
+              <ellipse cx="90" cy="62" rx="42" ry="31" fill="none" stroke="#22D3EE" strokeOpacity="0.14" strokeWidth="0.8" />
+              <ellipse cx="90" cy="62" rx="18" ry="46" fill="none" stroke="#22D3EE" strokeOpacity="0.18" strokeWidth="0.8" />
+              <ellipse cx="90" cy="62" rx="34" ry="46" fill="none" stroke="#22D3EE" strokeOpacity="0.12" strokeWidth="0.8" />
+              {/* Dotted Continents */}
+              {MAP_GRID_DOTS.map(([dx, dy], idx) => {
+                const gx = 48 + ((dx - 30) / 210) * 84;
+                const gy = 26 + ((dy - 25) / 80) * 72;
+                const dist = Math.hypot(gx - 90, gy - 62);
+                if (dist > 42) return null;
+                return <circle key={idx} cx={gx} cy={gy} r="1.45" fill="#67E8F9" fillOpacity="0.85" />;
               })}
+              {/* Active Region Pulses */}
+              <circle cx="108" cy="54" r="5.5" fill="#22D3EE" fillOpacity="0.22" />
+              <circle cx="108" cy="54" r="2.2" fill="#67E8F9" />
+              <circle cx="72" cy="48" r="4.5" fill="#10B981" fillOpacity="0.22" />
+              <circle cx="72" cy="48" r="2" fill="#34D399" />
+              {/* Orbital Ring */}
+              <ellipse
+                cx="90"
+                cy="62"
+                rx="54"
+                ry="19"
+                transform="rotate(-14 90 62)"
+                fill="none"
+                stroke="#38BDF8"
+                strokeOpacity="0.24"
+                strokeWidth="0.9"
+                strokeDasharray="3 3"
+              />
             </svg>
           </div>
 
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
+          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
             <span>{activeSkillsCount} skills active</span>
             <span aria-hidden="true">·</span>
             <span>{memories.length} memories</span>
@@ -528,85 +552,109 @@ export function HomeView({
         aria-label="Assistant command stage"
         className="order-1 flex flex-col gap-2.5 lg:order-2 lg:min-h-0 lg:overflow-y-auto lg:pr-0.5"
       >
-        {/* TOP STAGE */}
-        <div className="rounded-xl border border-cyan-500/25 bg-[#070E1A] p-3 shadow-[0_0_45px_rgba(0,245,255,0.06)]">
+        {/* TOP STAGE: Stonic 4-Node Circuit Bus + Chamfered Wavy-Hair Hologram Chamber */}
+        <div className="rounded-xl border border-cyan-500/20 bg-[#050C17] p-3 shadow-[0_0_45px_rgba(0,245,255,0.05)]">
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            {/* 4 Stacked Module Nodes + Multi-Color SVG Circuit Traces */}
-            <div className="relative grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-44 sm:flex-col sm:gap-2.5">
+            {/* 4 Stacked Module Nodes with Icon Badges + Exact Multi-Color Circuit Traces */}
+            <div className="relative grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-[196px] sm:flex-col sm:gap-2.5">
               <svg
-                viewBox="0 0 54 220"
-                className="pointer-events-none absolute -right-11 top-2 hidden h-[204px] w-12 sm:block"
+                viewBox="0 0 60 228"
+                className="pointer-events-none absolute -right-12 top-2 hidden h-[212px] w-14 sm:block"
                 aria-hidden="true"
               >
-                <path d="M0 20 L22 20 L38 72 L54 72" fill="none" stroke="#00F5FF" strokeOpacity="0.65" strokeWidth="1.6" />
-                <circle cx="51" cy="72" r="2.2" fill="#00F5FF" />
-                <path d="M0 78 L26 78 L38 96 L54 96" fill="none" stroke="#10B981" strokeOpacity="0.65" strokeWidth="1.6" />
-                <circle cx="51" cy="96" r="2.2" fill="#10B981" />
-                <path d="M0 138 L26 138 L38 122 L54 122" fill="none" stroke="#F59E0B" strokeOpacity="0.65" strokeWidth="1.6" />
-                <circle cx="51" cy="122" r="2.2" fill="#F59E0B" />
-                <path d="M0 198 L22 198 L38 148 L54 148" fill="none" stroke="#38BDF8" strokeOpacity="0.65" strokeWidth="1.6" />
-                <circle cx="51" cy="148" r="2.2" fill="#38BDF8" />
+                {/* MEMORY -> Cyan */}
+                <path d="M0 24 L26 24 L42 84 L58 84" fill="none" stroke="#22D3EE" strokeOpacity="0.72" strokeWidth="1.6" />
+                <circle cx="55" cy="84" r="2.3" fill="#22D3EE" />
+                {/* SKILLS -> Emerald */}
+                <path d="M0 82 L22 82 L40 104 L58 104" fill="none" stroke="#10B981" strokeOpacity="0.72" strokeWidth="1.6" />
+                <circle cx="55" cy="104" r="2.3" fill="#10B981" />
+                {/* CHARACTER -> Crimson */}
+                <path d="M0 144 L22 144 L40 124 L58 124" fill="none" stroke="#EF4444" strokeOpacity="0.75" strokeWidth="1.6" />
+                <circle cx="55" cy="124" r="2.3" fill="#EF4444" />
+                {/* SETTING -> Silver Slate */}
+                <path d="M0 202 L26 202 L42 144 L58 144" fill="none" stroke="#94A3B8" strokeOpacity="0.65" strokeWidth="1.6" />
+                <circle cx="55" cy="144" r="2.3" fill="#94A3B8" />
               </svg>
 
               <button
                 type="button"
                 onClick={() => onNavigate('memory')}
-                className="min-w-0 rounded-lg border border-cyan-500/35 bg-[#0A1424] px-3 py-2 text-left transition-colors hover:border-cyan-400 hover:bg-[#0E1C32]"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg border border-cyan-500/35 bg-[#071322] px-2.5 py-2 text-left transition-colors hover:border-cyan-400 hover:bg-[#0B1D33]"
               >
-                <span className="block font-display text-xs font-semibold tracking-wide text-cyan-300 whitespace-nowrap">
-                  MEMORY
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-cyan-400/35 bg-cyan-500/15 text-cyan-300">
+                  <Database className="h-3.5 w-3.5" />
                 </span>
-                <span className="mt-0.5 block text-[11px] text-slate-400 tabular-nums">
-                  {memories.length} stored
+                <span className="min-w-0">
+                  <span className="block font-display text-xs font-semibold tracking-wide text-white whitespace-nowrap">
+                    MEMORY
+                  </span>
+                  <span className="block text-[11px] text-cyan-300/80 tabular-nums">
+                    {memories.length} stored
+                  </span>
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigate('skills')}
-                className="min-w-0 rounded-lg border border-emerald-500/35 bg-[#0A1424] px-3 py-2 text-left transition-colors hover:border-emerald-400 hover:bg-[#0E1C32]"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg border border-emerald-500/35 bg-[#071322] px-2.5 py-2 text-left transition-colors hover:border-emerald-400 hover:bg-[#0B1D33]"
               >
-                <span className="block font-display text-xs font-semibold tracking-wide text-emerald-300 whitespace-nowrap">
-                  SKILLS
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-400/35 bg-emerald-500/15 text-emerald-300">
+                  <Cpu className="h-3.5 w-3.5" />
                 </span>
-                <span className="mt-0.5 block text-[11px] text-slate-400 tabular-nums">
-                  {activeSkillsCount} active
+                <span className="min-w-0">
+                  <span className="block font-display text-xs font-semibold tracking-wide text-white whitespace-nowrap">
+                    SKILLS
+                  </span>
+                  <span className="block text-[11px] text-emerald-300/80 tabular-nums">
+                    {activeSkillsCount} active
+                  </span>
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigate('character')}
-                className="min-w-0 rounded-lg border border-amber-500/35 bg-[#0A1424] px-3 py-2 text-left transition-colors hover:border-amber-400 hover:bg-[#0E1C32]"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg border border-rose-500/35 bg-[#071322] px-2.5 py-2 text-left transition-colors hover:border-rose-400 hover:bg-[#0B1D33]"
               >
-                <span className="block font-display text-xs font-semibold tracking-wide text-amber-300 whitespace-nowrap">
-                  CHARACTER
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-rose-400/35 bg-rose-500/15 text-rose-300">
+                  <UserCheck className="h-3.5 w-3.5" />
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">
-                  {config.assistant_name} · Lv {activeCharacter?.bond_level ?? 1}
+                <span className="min-w-0">
+                  <span className="block font-display text-xs font-semibold tracking-wide text-white whitespace-nowrap">
+                    CHARACTER
+                  </span>
+                  <span className="block truncate text-[11px] text-rose-300/85">
+                    {config.assistant_name} · Lv {activeCharacter?.bond_level ?? 1}
+                  </span>
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigate('settings')}
-                className="min-w-0 rounded-lg border border-sky-500/35 bg-[#0A1424] px-3 py-2 text-left transition-colors hover:border-sky-400 hover:bg-[#0E1C32]"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg border border-slate-500/35 bg-[#071322] px-2.5 py-2 text-left transition-colors hover:border-slate-300 hover:bg-[#0B1D33]"
               >
-                <span className="block font-display text-xs font-semibold tracking-wide text-sky-300 whitespace-nowrap">
-                  SETTINGS
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-400/35 bg-slate-500/15 text-slate-200">
+                  <SettingsIcon className="h-3.5 w-3.5" />
                 </span>
-                <span className="mt-0.5 block text-[11px] text-slate-400">
-                  Laptop &amp; AI
+                <span className="min-w-0">
+                  <span className="block font-display text-xs font-semibold tracking-wide text-white whitespace-nowrap">
+                    SETTING
+                  </span>
+                  <span className="block text-[11px] text-slate-400">
+                    Laptop &amp; AI
+                  </span>
                 </span>
               </button>
             </div>
 
-            {/* Right-Hand Glowing Holographic Portrait Chamber */}
-            <div className="relative flex flex-1 flex-col items-center rounded-xl border border-cyan-400/25 bg-[#050A14] px-3 py-2 sm:ml-6">
-              <span aria-hidden="true" className="pointer-events-none absolute left-2 top-2 h-2.5 w-2.5 border-l border-t border-cyan-400/60" />
-              <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 h-2.5 w-2.5 border-r border-t border-cyan-400/60" />
-              <span aria-hidden="true" className="pointer-events-none absolute bottom-2 left-2 h-2.5 w-2.5 border-b border-l border-cyan-400/60" />
-              <span aria-hidden="true" className="pointer-events-none absolute bottom-2 right-2 h-2.5 w-2.5 border-b border-r border-cyan-400/60" />
+            {/* Right-Hand Chamfered Wavy-Hair Holographic Chamber */}
+            <div className="relative flex flex-1 flex-col items-center overflow-hidden rounded-xl border border-cyan-500/25 bg-[#030A13] px-2.5 pb-2.5 pt-1.5 sm:ml-7">
+              <span aria-hidden="true" className="pointer-events-none absolute left-2 top-2 h-3 w-3 border-l border-t border-cyan-400/55" />
+              <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 h-3 w-3 border-r border-t border-cyan-400/55" />
+              <span aria-hidden="true" className="pointer-events-none absolute bottom-2 left-2 h-3 w-3 border-b border-l border-cyan-400/55" />
+              <span aria-hidden="true" className="pointer-events-none absolute bottom-2 right-2 h-3 w-3 border-b border-r border-cyan-400/55" />
 
               <HolographicAvatar
                 state={avatarState}
@@ -617,22 +665,37 @@ export function HomeView({
                 lipWidth={lipWidth}
               />
 
-              <p
-                className="mt-0.5 text-center text-xs font-medium text-cyan-200/90"
-                data-testid="avatar-status-text"
-              >
-                {stateDescription}
-              </p>
+              {/* Sleek Voice & Power Pill Bar matching Reference Screenshot */}
+              <div className="mt-1 flex items-center gap-2 rounded-full border border-cyan-500/25 bg-[#06111F]/95 px-2.5 py-1 shadow-[0_0_24px_rgba(0,0,0,0.65)]">
+                <button
+                  type="button"
+                  onClick={onToggleListening}
+                  aria-label={avatarState === 'listening' ? 'Stop microphone' : 'Activate microphone'}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors shrink-0 ${
+                    avatarState === 'listening'
+                      ? 'border-cyan-300 bg-cyan-400 text-slate-950'
+                      : 'border-slate-700 bg-[#0B1728] text-cyan-300 hover:border-cyan-400'
+                  }`}
+                >
+                  {avatarState === 'listening' ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                </button>
 
-              <div className="mt-2 flex items-center justify-center gap-2">
+                <span
+                  className="max-w-[200px] truncate px-1 text-xs font-medium text-cyan-100/90"
+                  data-testid="avatar-status-text"
+                >
+                  {stateDescription}
+                </span>
+
                 <button
                   type="button"
                   onClick={onTerminate}
                   aria-label="Terminate active speech or processing"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/60 bg-rose-600/20 px-4 py-1 text-xs font-semibold tracking-wider text-rose-200 transition-colors hover:bg-rose-600/35 hover:text-white whitespace-nowrap shrink-0"
+                  title="Stop speaking / processing"
+                  className="inline-flex h-6 items-center gap-1 rounded-full border border-rose-500/45 bg-rose-500/15 px-2 text-[11px] font-semibold text-rose-200 transition-colors hover:bg-rose-500/30 hover:text-white whitespace-nowrap shrink-0"
                 >
-                  <Square className="h-2.5 w-2.5 fill-current" />
-                  <span>TERMINATE</span>
+                  <Power className="h-3 w-3" />
+                  <span className="hidden sm:inline">Stop</span>
                 </button>
               </div>
             </div>
@@ -736,14 +799,14 @@ export function HomeView({
           </div>
         </div>
 
-        {/* BOTTOM CENTER CARD: Neural Hub (Visual Hub | Study & Code | Quick Skills | Voice Tuning) */}
-        <div className="flex flex-col rounded-xl border border-slate-800/90 bg-[#070E1A] p-3">
+        {/* BOTTOM CENTER CARD: Visual Hub (Isometric 3D Bars + Layers | Study & Code | Quick Skills | Voice Tuning) */}
+        <div className="flex flex-col rounded-xl border border-slate-800/90 bg-[#050C17] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
             <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Neural Hub
+              Visual Hub
             </h3>
             <div
-              className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-[#050A14] p-0.5"
+              className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-[#040912] p-0.5"
               role="tablist"
               aria-label="Neural hub modes"
             >
@@ -775,36 +838,41 @@ export function HomeView({
 
           {/* Tab 1: Visual Hub */}
           {centerTab === 'visual' && (
-            <div className="mt-2.5 grid grid-cols-1 items-center gap-3 sm:grid-cols-12">
+            <div className="mt-2 grid grid-cols-1 items-center gap-3 sm:grid-cols-12">
               <div className="flex flex-col items-center justify-center sm:col-span-5">
                 <svg
-                  viewBox="0 0 200 156"
-                  className="h-32 w-44"
-                  aria-label="Interactive isometric neural stack for Persona, Skills, and Memory"
+                  viewBox="0 0 210 156"
+                  className="h-32 w-48"
+                  aria-label="Interactive 3D isometric holographic stack with data pillars"
                 >
-                  <line x1="100" y1="20" x2="100" y2="136" stroke="#00F5FF" strokeOpacity="0.18" strokeDasharray="3 3" />
+                  <line x1="105" y1="16" x2="105" y2="144" stroke="#22D3EE" strokeOpacity="0.16" strokeDasharray="3 3" />
+                  {/* Bottom Layer: Memory */}
                   <g onClick={() => onNavigate('memory')} className="cursor-pointer opacity-90 hover:opacity-100">
-                    <polygon points="100,90 172,114 100,138 28,114" fill="rgba(14, 165, 233, 0.14)" stroke="#0284C7" strokeWidth="1.4" />
-                    <polygon points="28,114 100,138 100,146 28,122" fill="rgba(2, 132, 199, 0.22)" stroke="#0284C7" strokeWidth="1" />
-                    <polygon points="172,114 100,138 100,146 172,122" fill="rgba(14, 165, 233, 0.12)" stroke="#0284C7" strokeWidth="1" />
+                    <polygon points="105,102 175,124 105,146 35,124" fill="rgba(14, 165, 233, 0.14)" stroke="#0284C7" strokeWidth="1.3" />
+                    <polygon points="35,124 105,146 105,152 35,130" fill="rgba(2, 132, 199, 0.24)" stroke="#0284C7" strokeWidth="0.9" />
+                    <polygon points="175,124 105,146 105,152 175,130" fill="rgba(14, 165, 233, 0.12)" stroke="#0284C7" strokeWidth="0.9" />
                   </g>
+                  {/* Middle Layer: Skills */}
                   <g onClick={() => onNavigate('skills')} className="cursor-pointer opacity-95 hover:opacity-100">
-                    <polygon points="100,56 172,80 100,104 28,80" fill="rgba(0, 245, 255, 0.14)" stroke="#22D3EE" strokeWidth="1.5" />
-                    <polygon points="28,80 100,104 100,112 28,88" fill="rgba(34, 211, 238, 0.22)" stroke="#22D3EE" strokeWidth="1" />
-                    <polygon points="172,80 100,104 100,112 172,88" fill="rgba(34, 211, 238, 0.12)" stroke="#22D3EE" strokeWidth="1" />
+                    <polygon points="105,72 175,94 105,116 35,94" fill="rgba(0, 245, 255, 0.12)" stroke="#22D3EE" strokeWidth="1.4" />
+                    <polygon points="35,94 105,116 105,122 35,100" fill="rgba(34, 211, 238, 0.2)" stroke="#22D3EE" strokeWidth="0.9" />
+                    <polygon points="175,94 105,116 105,122 175,100" fill="rgba(34, 211, 238, 0.1)" stroke="#22D3EE" strokeWidth="0.9" />
                   </g>
+                  {/* Top Layer: Character Core + Isometric 3D Glowing Bar Pillars */}
                   <g onClick={() => onNavigate('character')} className="cursor-pointer hover:opacity-100">
-                    <polygon points="100,22 172,46 100,70 28,46" fill="rgba(0, 245, 255, 0.20)" stroke="#00F5FF" strokeWidth="1.7" />
-                    <polygon points="28,46 100,70 100,78 28,54" fill="rgba(0, 245, 255, 0.28)" stroke="#00F5FF" strokeWidth="1" />
-                    <polygon points="172,46 100,70 100,78 172,54" fill="rgba(0, 245, 255, 0.16)" stroke="#00F5FF" strokeWidth="1" />
-                    <polygon points="100,12 114,18 100,24 86,18" fill="rgba(0,245,255,0.45)" stroke="#67E8F9" strokeWidth="1" />
-                    <polygon points="86,18 100,24 100,34 86,28" fill="rgba(0,245,255,0.3)" stroke="#67E8F9" strokeWidth="1" />
-                    <polygon points="114,18 100,24 100,34 114,28" fill="rgba(0,245,255,0.18)" stroke="#67E8F9" strokeWidth="1" />
-                    <circle cx="128" cy="46" r="3" fill="#10B981" />
-                    <circle cx="72" cy="46" r="3" fill="#38BDF8" />
+                    <polygon points="105,40 175,62 105,84 35,62" fill="rgba(34, 211, 238, 0.22)" stroke="#38BDF8" strokeWidth="1.6" />
+                    <polygon points="35,62 105,84 105,90 35,68" fill="rgba(34, 211, 238, 0.28)" stroke="#38BDF8" strokeWidth="1" />
+                    <polygon points="175,62 105,84 105,90 175,68" fill="rgba(34, 211, 238, 0.16)" stroke="#38BDF8" strokeWidth="1" />
+                    {/* 3D Isometric Data Pillars rising from Top Layer (matching Screenshot 2) */}
+                    <polygon points="82,54 92,58 92,38 82,34" fill="rgba(56,189,248,0.45)" stroke="#67E8F9" strokeWidth="0.9" />
+                    <polygon points="92,58 102,54 102,34 92,38" fill="rgba(14,165,233,0.3)" stroke="#67E8F9" strokeWidth="0.9" />
+                    <polygon points="105,60 115,64 115,24 105,20" fill="rgba(34,211,238,0.55)" stroke="#A5F3FC" strokeWidth="1" />
+                    <polygon points="115,64 125,60 125,20 115,24" fill="rgba(6,182,212,0.35)" stroke="#A5F3FC" strokeWidth="1" />
+                    <polygon points="128,56 138,60 138,42 128,38" fill="rgba(56,189,248,0.4)" stroke="#67E8F9" strokeWidth="0.9" />
+                    <polygon points="138,60 148,56 148,38 138,42" fill="rgba(14,165,233,0.28)" stroke="#67E8F9" strokeWidth="0.9" />
                   </g>
                 </svg>
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
                   <button type="button" onClick={() => onNavigate('character')} className="hover:text-cyan-300">Persona</button>
                   <span aria-hidden="true">·</span>
                   <button type="button" onClick={() => onNavigate('skills')} className="hover:text-cyan-300">Skills</button>
@@ -818,10 +886,10 @@ export function HomeView({
                   What do you want to see?
                 </h4>
                 <p className="mt-0.5 text-xs text-slate-400">
-                  Trigger Urdu speech checks, moods, bilingual skills, or deep reasoning.
+                  Ask out loud. {config.assistant_name} draws &amp; explains it right here.
                 </p>
                 <div className="mt-2 space-y-1">
-                  {QUICK_VISUAL_PROMPTS.map((item) => (
+                  {QUICK_VISUAL_PROMPTS.map((item, idx) => (
                     <button
                       key={item.label}
                       type="button"
@@ -830,9 +898,14 @@ export function HomeView({
                         setRightTab('chat');
                         onSendMessage(item.text);
                       }}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800/90 bg-[#0A1322] px-3 py-1 text-left text-xs text-slate-200 transition-colors hover:border-cyan-500/50 hover:text-white disabled:opacity-50"
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800/90 bg-[#081221] px-2.5 py-1 text-left text-xs text-slate-200 transition-colors hover:border-cyan-500/50 hover:text-white disabled:opacity-50"
                     >
-                      <span className="truncate">{item.label}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="font-mono text-[10px] text-cyan-400/80 tabular-nums">
+                          0{idx + 1}
+                        </span>
+                        <span className="truncate">{item.label}</span>
+                      </span>
                       <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
                     </button>
                   ))}
