@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import wavyHologramUrl from '../assets/images/nova_wavy_hologram_1795067914360.jpg';
 import {
   computeHairMeshOffset,
   computeTargetHairWind,
@@ -15,7 +16,7 @@ interface HolographicAvatarProps {
   lipWidth?: number;
 }
 
-const WAVY_HOLOGRAM_URL = '/src/assets/images/nova_wavy_hologram_1795067914360.jpg';
+const WAVY_HOLOGRAM_URL = wavyHologramUrl;
 const MESH_COLS = 14;
 const MESH_ROWS = 16;
 const OFFSCREEN_SIZE = 512;
