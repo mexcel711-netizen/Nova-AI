@@ -47,5 +47,11 @@ The Home screen includes a holographic command-centre layout and an optional loc
 
 The companion is an optional local Node.js process. It binds to loopback only, checks the NOVA origin and pairing token, and only launches the small allowlist of applications. See [desktop-companion/README.md](desktop-companion/README.md) for setup and security details.
 
+### Camera vision awareness
+- The Home screen's **Vision & Gesture** card requests camera permission only when you turn the camera on or request **Look at Me**.
+- Visual understanding sends a single JPEG snapshot to the protected Worker vision endpoint (Gemini 2.5 Flash). The app does not continuously stream or save camera video/images.
+- Set the Cloudflare Worker secret `GEMINI_API_KEY` to enable visual scene understanding. If it is not configured, NOVA returns a clear setup error instead of pretending to see.
+- Turn the camera off from the visible **Cam Off** control; browser permission can also be revoked in site settings.
+
 ### Pakistani Urdu neural female voice
 When the desktop companion is paired, NOVA uses Microsoft Edge neural TTS with `ur-PK-UzmaNeural` for Urdu and `en-US-JennyNeural` for English. The synthesis service is internet-backed. Without the companion, the existing hosted TTS fallback is used. Voice quality and accent should be tested on the target device.
