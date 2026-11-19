@@ -324,3 +324,17 @@ body {
     order: 3;
   }
 }
+
+
+/* Holographic character projection: layered scanlines, glass aperture and volumetric glow */
+[aria-label="Assistant voice stage"] {
+  background-image: radial-gradient(ellipse at 50% 42%, rgba(26, 221, 255, .13), transparent 47%), linear-gradient(180deg, rgba(4, 13, 24, .96), rgba(3, 8, 16, .98)) !important;
+}
+[aria-label="Assistant voice stage"] canvas {
+  filter: drop-shadow(0 0 18px rgba(34, 211, 238, .34)) drop-shadow(0 0 48px rgba(14, 165, 233, .18));
+}
+[aria-label="Assistant voice stage"]::before {
+  background-image: linear-gradient(rgba(70, 220, 255, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(70, 220, 255, .035) 1px, transparent 1px);
+  background-size: 26px 26px;
+  box-shadow: inset 0 0 90px rgba(0, 195, 255, .055), 0 0 50px rgba(0, 195, 255, .045);
+}
