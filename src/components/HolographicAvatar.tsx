@@ -553,7 +553,7 @@ export function HolographicAvatar({
     >
       <canvas
         ref={canvasRef}
-        className="h-[340px] w-[340px]"
+        className="h-[268px] w-[268px] sm:h-[284px] sm:w-[284px]"
         aria-label={`${assistantName} realistic holographic portrait: ${state}, expression ${emotion}`}
       />
     </div>

@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BrainCircuit,
-  Clock,
-  Home,
   Menu,
   MessageSquarePlus,
-  Settings,
-  Sparkles,
-  UserCog,
-  Wrench,
   X,
 } from 'lucide-react';
 import { CharacterView } from './components/views/CharacterView';
@@ -67,13 +60,13 @@ const DEFAULT_PROVIDER_STATUS: ProviderStatus = {
   cloudflareBindingActive: false,
 };
 
-const NAV_ITEMS: Array<{ id: SidebarPage; label: string; icon: typeof Home }> = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'memory', label: 'Memory', icon: BrainCircuit },
-  { id: 'skills', label: 'Skills', icon: Wrench },
-  { id: 'character', label: 'Character', icon: UserCog },
-  { id: 'recent', label: 'Recent', icon: Clock },
-  { id: 'settings', label: 'Settings', icon: Settings },
+const NAV_ITEMS: Array<{ id: SidebarPage; label: string }> = [
+  { id: 'home', label: 'Home' },
+  { id: 'memory', label: 'Memory' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'character', label: 'Character' },
+  { id: 'recent', label: 'Recent' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 function createGreetingMessage(sessionId: string, assistantName: string): ChatMessage {
@@ -118,9 +111,6 @@ export default function App() {
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [warningBanner, setWarningBanner] = useState<string | null>(null);
   const [launchedUrl, setLaunchedUrl] = useState<string | null>(null);
-  const [clockText, setClockText] = useState<string>(() =>
-    new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  );
 
   const recognitionRef = useRef<SpeechRecognitionHandle | null>(null);
   const wakeRecRef = useRef<SpeechRecognitionHandle | null>(null);
@@ -162,15 +152,6 @@ export default function App() {
   useEffect(() => {
     fetchState();
   }, [fetchState]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setClockText(
-        new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      );
-    }, 15_000);
-    return () => clearInterval(id);
-  }, []);
 
   const stopMicMeter = useCallback(() => {
     if (micRafRef.current) {
@@ -532,13 +513,73 @@ export default function App() {
     }
   };
 
-  const currentNavLabel =
-    NAV_ITEMS.find((item) => item.id === activePage)?.label ?? 'Home';
+  const handleToggleSkill = async (id: number, is_enabled: boolean) => {
+    const res = await fetch(`/api/skills/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_enabled }),
+    });
+    if (res.ok) {
+      setSkills((prev) => prev.map((s) => (s.id === id ? { ...s, is_enabled } : s)));
+    }
+  };
+
+  const handleAddNote = async (title: string, content: string) => {
+    const res = await fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { notes: NoteRecord[] };
+      setNotes(data.notes);
+    }
+  };
+
+  const handleDeleteNote = async (id: number) => {
+    const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = (await res.json()) as { notes: NoteRecord[] };
+      setNotes(data.notes);
+    }
+  };
+
+  const handleAddReminder = async (title: string, remind_at: string) => {
+    const res = await fetch('/api/reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, remind_at }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { reminders: ReminderRecord[] };
+      setReminders(data.reminders);
+    }
+  };
+
+  const handleToggleReminder = async (id: number, is_done: boolean) => {
+    const res = await fetch(`/api/reminders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_done }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { reminders: ReminderRecord[] };
+      setReminders(data.reminders);
+    }
+  };
+
+  const handleDeleteReminder = async (id: number) => {
+    const res = await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = (await res.json()) as { reminders: ReminderRecord[] };
+      setReminders(data.reminders);
+    }
+  };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#0A0A0F] text-slate-100">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#060A12] text-slate-100">
       {/* Top Bar — Strict 3-Zone Contract */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-8 border-b border-slate-800/80 bg-[#0D1117] px-5">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-8 border-b border-slate-800/80 bg-[#070D17] px-5">
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
@@ -548,35 +589,54 @@ export default function App() {
           >
             {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <span className="font-display text-lg font-bold tracking-wide text-white whitespace-nowrap shrink-0">
+          <button
+            type="button"
+            onClick={() => setActivePage('home')}
+            className="font-display text-lg font-bold tracking-wide text-white whitespace-nowrap shrink-0"
+          >
             {config.assistant_name} AI
-          </span>
+          </button>
         </div>
 
-        <div className="hidden items-center gap-4 text-xs text-slate-400 sm:flex whitespace-nowrap shrink-0">
-          <span className="font-medium text-slate-200">{currentNavLabel}</span>
-          <span aria-hidden="true">·</span>
-          <span className="font-mono tabular-nums text-slate-400">{clockText}</span>
-          {launchedUrl && (
-            <>
-              <span aria-hidden="true">·</span>
-              <a
-                href={launchedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-cyan-400 underline underline-offset-4 hover:text-cyan-300"
+        <nav
+          aria-label="Primary navigation"
+          className="hidden items-center gap-6 text-sm font-medium md:flex"
+        >
+          {NAV_ITEMS.map((item) => {
+            const isActive = activePage === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActivePage(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`border-b-2 py-4 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? 'border-cyan-400 text-cyan-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-100'
+                }`}
               >
-                Open launched link
-              </a>
-            </>
+                {item.label}
+              </button>
+            );
+          })}
+          {launchedUrl && (
+            <a
+              href={launchedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-cyan-400 underline underline-offset-4 hover:text-cyan-300 whitespace-nowrap shrink-0"
+            >
+              Open launched link
+            </a>
           )}
-        </div>
+        </nav>
 
         <div className="flex items-center shrink-0">
           <button
             type="button"
             onClick={handleNewSession}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-[#111827] px-3.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-cyan-500/50 hover:text-white whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/35 bg-[#0C1526] px-3.5 py-1.5 text-xs font-medium text-slate-100 transition-colors hover:border-cyan-400 hover:text-white whitespace-nowrap shrink-0"
           >
             <MessageSquarePlus className="h-3.5 w-3.5 text-cyan-400" />
             <span>New Session</span>
@@ -586,56 +646,52 @@ export default function App() {
 
       {/* Main Workspace */}
       <div className="relative flex min-h-0 flex-1">
-        {/* Sidebar Navigation */}
-        <aside
-          aria-label="Primary navigation"
-          className={`${
-            mobileNavOpen ? 'absolute inset-y-0 left-0 z-40 flex' : 'hidden'
-          } w-56 shrink-0 flex-col justify-between border-r border-slate-800/80 bg-[#0D1117] p-3 md:static md:flex`}
-        >
-          <nav className="space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activePage === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setActivePage(item.id);
-                    setMobileNavOpen(false);
-                  }}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-300'
-                      : 'border-transparent text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="border-t border-slate-800/80 pt-3 px-2 text-xs text-slate-500 tabular-nums">
-            <div className="flex items-center gap-1.5 text-slate-400">
-              <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-              <span>{memories.length} memories</span>
+        {/* Mobile Navigation Drawer */}
+        {mobileNavOpen && (
+          <aside
+            aria-label="Mobile navigation"
+            className="absolute inset-y-0 left-0 z-40 flex w-60 flex-col justify-between border-r border-slate-800/90 bg-[#070D17] p-4 shadow-2xl md:hidden"
+          >
+            <nav className="space-y-1">
+              {NAV_ITEMS.map((item) => {
+                const isActive = activePage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActivePage(item.id);
+                      setMobileNavOpen(false);
+                    }}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`flex w-full items-center justify-between rounded-lg border px-3.5 py-2.5 text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                      isActive
+                        ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-300'
+                        : 'border-transparent text-slate-400 hover:bg-slate-800/50 hover:text-slate-100'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="border-t border-slate-800/80 pt-3 text-xs text-slate-400 tabular-nums">
+              <p>{memories.length} memories</p>
+              <p className="mt-1">{skills.filter((s) => s.is_enabled).length} skills active</p>
             </div>
-            <p className="mt-1">
-              {skills.filter((s) => s.is_enabled).length} skills active
-            </p>
-          </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Active View Viewport */}
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#0A0A0F]">
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[#060A12]">
           {activePage === 'home' && (
             <HomeView
               config={config}
               providerStatus={providerStatus}
+              memories={memories}
+              notes={notes}
+              reminders={reminders}
+              skills={skills}
               avatarState={avatarState}
               avatarEmotion={avatarEmotion}
               micLevel={micLevel}
@@ -649,6 +705,7 @@ export default function App() {
               autoSpeak={config.auto_speak}
               errorBanner={errorBanner}
               warningBanner={warningBanner}
+              onNavigate={setActivePage}
               onInputChange={setInputValue}
               onSelectEmotion={setAvatarEmotion}
               onSendMessage={handleSendMessage}
@@ -665,6 +722,13 @@ export default function App() {
                 setAvatarState('idle');
                 setAvatarEmotion('calm');
               }}
+              onSaveConfig={handleSaveConfig}
+              onToggleSkill={handleToggleSkill}
+              onAddNote={handleAddNote}
+              onDeleteNote={handleDeleteNote}
+              onAddReminder={handleAddReminder}
+              onToggleReminder={handleToggleReminder}
+              onDeleteReminder={handleDeleteReminder}
             />
           )}
 
