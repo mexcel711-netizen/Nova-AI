@@ -174,6 +174,33 @@ export async function speakText(params: {
     void err;
   }
 
+  // If the hosted endpoint has no audio, use the device's installed speech voice.
+  // A paired desktop companion is preferred above because it provides Edge Neural TTS.
+  if (!controller.signal.aborted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      const voices = window.speechSynthesis.getVoices();
+      const locale = params.language === 'ur' ? 'ur' : 'en';
+      const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(locale));
+      const preferred = matching.find((voice) => /female|zira|ayesha|uzma|sara|heera|sana/i.test(voice.name))
+        || matching[0];
+      if (preferred) utterance.voice = preferred;
+      utterance.lang = params.language === 'ur' ? 'ur-PK' : 'en-US';
+      utterance.rate = Math.min(1.08, Math.max(0.88, (params.voiceSpeed ?? 1) * 0.94));
+      utterance.pitch = 1.08;
+      utterance.volume = Math.min(1, Math.max(0, params.voiceVolume ?? 1));
+      utterance.onboundary = (event) => {
+        const progress = event.charIndex / Math.max(1, cleanText.length);
+        const syllablePulse = 0.18 + Math.abs(Math.sin(progress * 46)) * 0.48;
+        params.onLipSync?.(syllablePulse, 0.24 + syllablePulse * 0.55);
+      };
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+    engineUsed = 'device-speech-synthesis';
+  }
+
   params.onLipSync?.(0, 0);
   params.onEnd?.();
   return { engine: engineUsed };
