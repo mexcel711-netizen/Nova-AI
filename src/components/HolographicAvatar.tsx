@@ -151,6 +151,7 @@ export function HolographicAvatar({
     let windPhase = 0;
     let currentWind = 0;
     let lastWindAttr = '';
+    let lastFrameTime = 0;
 
     const drawDeformedMesh = (
       drawX: number,
@@ -195,7 +196,11 @@ export function HolographicAvatar({
       }
     };
 
-    const renderFrame = () => {
+    const renderFrame = (timestamp: number) => {
+      const dtScale = lastFrameTime === 0
+        ? 1
+        : Math.min(2.5, Math.max(0.25, (timestamp - lastFrameTime) / 16.67));
+      lastFrameTime = timestamp;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const width = 360;
       const height = 278;
@@ -227,8 +232,9 @@ export function HolographicAvatar({
             state: curState,
             micLevel: curMic,
             lipOpenness: curLipOpen,
+            lipWidth: curLipWidth,
           });
-      currentWind = prefersReducedMotion ? 0 : stepHairWind(currentWind, targetWind);
+      currentWind = prefersReducedMotion ? 0 : stepHairWind(currentWind, targetWind, dtScale);
 
       const windLabel = currentWind.toFixed(2);
       if (containerRef.current && windLabel !== lastWindAttr) {
@@ -245,8 +251,8 @@ export function HolographicAvatar({
               ? 0.026
               : 0.012;
       if (!prefersReducedMotion) {
-        phase += speed;
-        windPhase += 0.028 + currentWind * 0.045;
+        phase += speed * dtScale;
+        windPhase += (0.028 + currentWind * 0.045) * dtScale;
       }
 
       const palette =
