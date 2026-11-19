@@ -17,11 +17,8 @@ interface SettingsViewProps {
 type SettingsTab = 'ai' | 'voice' | 'mic' | 'laptop' | 'privacy';
 
 const VOICE_OPTIONS = [
-  { id: 'Kore', label: 'Kore — Expressive Pakistani Urdu & English Female (Default)' },
-  { id: 'Zephyr', label: 'Zephyr — Bright & Warm Female' },
-  { id: 'Puck', label: 'Puck — Crisp Conversational' },
-  { id: 'Charon', label: 'Charon — Deep Grounded' },
-  { id: 'Fenrir', label: 'Fenrir — Calm Baritone' },
+  { id: 'ur-PK-UzmaNeural', label: 'Uzma Neural — Pakistani Urdu Female (Recommended)' },
+  { id: 'en-US-JennyNeural', label: 'Jenny Neural — English Female' },
 ];
 
 export function SettingsView({
@@ -342,8 +339,9 @@ export function SettingsView({
                 htmlFor="settings-tts-voice"
                 className="block text-xs font-medium text-slate-300"
               >
-                Neural Female Voice Persona
+                Microsoft Neural Female Voice Persona
               </label>
+              <p className="mt-1 text-xs leading-relaxed text-cyan-200/75">For the natural Pakistani Urdu voice, start and pair the NOVA Desktop Companion. It uses Microsoft Edge Neural Uzma locally; without pairing, the hosted fallback may sound less expressive.</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-3">
                 <select
                   id="settings-tts-voice"
