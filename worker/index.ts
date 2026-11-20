@@ -5,7 +5,7 @@ import type { AppConfig, ChatApiResponse, ProviderStatus } from '../src/types/no
 
 interface D1Statement { bind(...v:unknown[]):D1Statement; all<T>():Promise<{results:T[]}>; first<T>():Promise<T|null>; run():Promise<unknown>; }
 interface DB { prepare(sql:string):D1Statement; }
-interface Env { DB:DB; AI?:{run(model:string,input:{messages:Array<{role:string;content:string}>}):Promise<{response?:string}>}; ASSETS:{fetch(r:Request):Promise<Response>}; GEMINI_API_KEY?:string; CLOUDFLARE_MODEL?:string; }
+interface Env { DB:DB; AI?:{run(model:string,input:{prompt?:string;image?:string;messages?:Array<{role:string;content:string|Array<{type:string;text?:string;image_url?:{url:string}}>}>;temperature?:number;max_tokens?:number}):Promise<{response?:string;result?:string;description?:string}>}; ASSETS:{fetch(r:Request):Promise<Response>}; GEMINI_API_KEY?:string; CLOUDFLARE_MODEL?:string; }
 const DEFAULT:AppConfig={assistant_name:'NOVA',personality:'friendly_professional',custom_prompt:'You are NOVA, a warm Pakistani assistant fluent in Urdu, Roman Urdu and English.',language:'bilingual',response_tone:'casual',tts_voice:'ur-PK-UzmaNeural',voice_speed:1,voice_volume:1,stt_model:'base',wake_word:'hey nova',wake_word_enabled:false,auto_speak:true,deep_thinking_mode:'auto',default_model:'gemini-4-hydrogen',ai_provider:'auto',active_mood:'auto',active_character_id:1,hands_free_mode:false,camera_awareness_enabled:false};
 const json=(x:unknown,s=200)=>Response.json(x,{status:s,headers:{'Cache-Control':'no-store'}});
 const all=async<T>(db:DB,q:string,...v:unknown[]) => (await db.prepare(q).bind(...v).all<T>()).results;
@@ -26,30 +26,39 @@ async function vision(request:Request,env:Env){
   const b=await request.json() as any;
   const imageBase64=String(b.imageBase64||'');
   if(!imageBase64||imageBase64.length>5_000_000)return json({error:'A camera snapshot (max 3.75MB) is required.'},400);
-  if(!env.GEMINI_API_KEY)return json({error:'Camera vision needs GEMINI_API_KEY. Add it as a secret to the NOVA Worker, then try again.'},503);
+  if(!env.AI)return json({error:'Cloudflare Workers AI binding is not available on this Worker.'},503);
   const mimeType=String(b.mimeType||'image/jpeg');
   if(!['image/jpeg','image/png','image/webp'].includes(mimeType))return json({error:'Only JPEG, PNG, or WebP camera images are supported.'},400);
   const userPrompt=String(b.userPrompt||'Describe what is visible in this camera frame and answer the user naturally.').slice(0,1200);
   const gestureHint=String(b.gestureHint||'').slice(0,160);
-  const model='gemini-2.5-flash';
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      systemInstruction:{parts:[{text:'You are NOVA, a warm Pakistani female visual assistant. Inspect only what is clearly visible in the supplied single camera frame. Do not identify people, infer sensitive traits, or claim certainty about ambiguous details. If asked whether something is visible, answer directly and describe observable objects/actions. Reply in the user’s language (Urdu, Roman Urdu, or English), naturally and concisely. Never claim continuous monitoring: this is one snapshot only. Start with one emotion tag such as [emotion:curious] or [emotion:calm].'}]},
-      contents:[{role:'user',parts:[{inlineData:{mimeType,data:imageBase64}},{text:[userPrompt,gestureHint?'Camera motion hint: '+gestureHint:''].filter(Boolean).join('\n')}]}],
-      generationConfig:{temperature:0.45,maxOutputTokens:500}
-    })
-  });
-  const d=await r.json() as any;
-  if(!r.ok)return json({error:d.error?.message||'Gemini vision request failed.'},502);
-  const raw=d.candidates?.[0]?.content?.parts?.map((x:any)=>x.text||'').join('').trim()||'';
-  if(!raw)return json({error:'Vision model returned an empty response.'},502);
+  const model='@cf/qwen/qwen3.8-27b';
+  const system='You are NOVA, a warm Pakistani female visual assistant. Inspect only what is clearly visible in this single user-authorized camera snapshot. Do not identify people, infer sensitive traits, or claim certainty about ambiguous details. If asked whether something is visible, answer directly and describe observable objects/actions. Reply in the user’s language (Urdu, Roman Urdu, or English), naturally and concisely. Never claim continuous monitoring: this is one snapshot only. Start with one emotion tag such as [emotion:curious] or [emotion:calm].';
+  let result:any;
+  try{
+    result=await env.AI.run(model,{
+      messages:[
+        {role:'system',content:system},
+        {role:'user',content:[
+          {type:'text',text:[userPrompt,gestureHint?'Camera motion hint: '+gestureHint:''].filter(Boolean).join('\n')},
+          {type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+imageBase64}}
+        ]}
+      ],
+      temperature:0.35,
+      max_tokens:500
+    });
+  }catch(error){
+    const message=error instanceof Error?error.message:'Vision model request failed.';
+    return json({error:'Cloudflare Vision is not ready: '+message},502);
+  }
+  const raw=String(result?.response||result?.result||result?.description||'').trim();
+  if(!raw)return json({error:'Cloudflare Vision returned an empty response.'},502);
   const parsed=extractEmotionAndCleanText(raw),reply=parsed.cleanText;
   const language=detectUrduIntent(reply)?'ur':'en';
   const sessionId=String(b.sessionId||crypto.randomUUID()).slice(0,120);
-  await save(env.DB,{sessionId,role:'assistant',content:reply,language,emotion:parsed.emotion,modelUsed:model,providerUsed:'google-ai-studio-vision'});
+  await save(env.DB,{sessionId,role:'assistant',content:reply,language,emotion:parsed.emotion,modelUsed:model,providerUsed:'cloudflare-workers-ai-vision'});
   return json({reply,emotion:parsed.emotion,language,modelUsed:model});
 }
+
 export default {async fetch(request:Request,env:Env){const u=new URL(request.url),p=u.pathname,m=request.method,db=env.DB;if(p==='/api/health')return json({ok:true,runtime:'cloudflare-worker',timestamp:new Date().toISOString(),database:'D1'});try{
 if(p==='/api/state'&&m==='GET')return json(await getState(db,env));
 if(p==='/api/chat'&&m==='POST')return await chat(request,env);
