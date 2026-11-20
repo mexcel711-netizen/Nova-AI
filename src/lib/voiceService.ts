@@ -178,11 +178,30 @@ export async function speakText(params: {
   // A paired desktop companion is preferred above because it provides Edge Neural TTS.
   if (!controller.signal.aborted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
     await new Promise<void>((resolve) => {
+      const synth = window.speechSynthesis;
+      // Some Chromium builds populate the voice list asynchronously. Wait briefly
+      // so Urdu/Pakistani voices are selectable instead of silently using a wrong locale.
+      const voices = await new Promise<SpeechSynthesisVoice[]>((done) => {
+        const current = synth.getVoices();
+        if (current.length) {
+          done(current);
+          return;
+        }
+        const finish = () => {
+          synth.removeEventListener('voiceschanged', finish);
+          done(synth.getVoices());
+        };
+        synth.addEventListener('voiceschanged', finish, { once: true });
+        window.setTimeout(finish, 700);
+      });
+      if (controller.signal.aborted) {
+        resolve();
+        return;
+      }
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      const voices = window.speechSynthesis.getVoices();
       const locale = params.language === 'ur' ? 'ur' : 'en';
       const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(locale));
-      const preferred = matching.find((voice) => /female|zira|ayesha|uzma|sara|heera|sana/i.test(voice.name))
+      const preferred = matching.find((voice) => /female|zira|ayesha|uzma|sara|heera|sana|jenny|aria/i.test(voice.name))
         || matching[0];
       if (preferred) utterance.voice = preferred;
       utterance.lang = params.language === 'ur' ? 'ur-PK' : 'en-US';
@@ -196,7 +215,9 @@ export async function speakText(params: {
       };
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
-      window.speechSynthesis.speak(utterance);
+      // Resume is needed on some desktop Chromium builds after an async API call.
+      synth.resume();
+      synth.speak(utterance);
     });
     engineUsed = 'device-speech-synthesis';
   }
