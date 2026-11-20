@@ -177,49 +177,46 @@ export async function speakText(params: {
   // If the hosted endpoint has no audio, use the device's installed speech voice.
   // A paired desktop companion is preferred above because it provides Edge Neural TTS.
   if (!controller.signal.aborted && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    await new Promise<void>((resolve) => {
-      const synth = window.speechSynthesis;
-      // Some Chromium builds populate the voice list asynchronously. Wait briefly
-      // so Urdu/Pakistani voices are selectable instead of silently using a wrong locale.
-      const voices = await new Promise<SpeechSynthesisVoice[]>((done) => {
-        const current = synth.getVoices();
-        if (current.length) {
-          done(current);
-          return;
-        }
-        const finish = () => {
-          synth.removeEventListener('voiceschanged', finish);
-          done(synth.getVoices());
-        };
-        synth.addEventListener('voiceschanged', finish, { once: true });
-        window.setTimeout(finish, 700);
-      });
-      if (controller.signal.aborted) {
-        resolve();
+    const synth = window.speechSynthesis;
+    // Chromium may populate installed voices asynchronously; wait briefly for Urdu voices.
+    const voices = await new Promise<SpeechSynthesisVoice[]>((done) => {
+      const current = synth.getVoices();
+      if (current.length) {
+        done(current);
         return;
       }
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      const locale = params.language === 'ur' ? 'ur' : 'en';
-      const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(locale));
-      const preferred = matching.find((voice) => /female|zira|ayesha|uzma|sara|heera|sana|jenny|aria/i.test(voice.name))
-        || matching[0];
-      if (preferred) utterance.voice = preferred;
-      utterance.lang = params.language === 'ur' ? 'ur-PK' : 'en-US';
-      utterance.rate = Math.min(1.08, Math.max(0.88, (params.voiceSpeed ?? 1) * 0.94));
-      utterance.pitch = 1.08;
-      utterance.volume = Math.min(1, Math.max(0, params.voiceVolume ?? 1));
-      utterance.onboundary = (event) => {
-        const progress = event.charIndex / Math.max(1, cleanText.length);
-        const syllablePulse = 0.18 + Math.abs(Math.sin(progress * 46)) * 0.48;
-        params.onLipSync?.(syllablePulse, 0.24 + syllablePulse * 0.55);
+      const finish = () => {
+        synth.removeEventListener('voiceschanged', finish);
+        done(synth.getVoices());
       };
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-      // Resume is needed on some desktop Chromium builds after an async API call.
-      synth.resume();
-      synth.speak(utterance);
+      synth.addEventListener('voiceschanged', finish, { once: true });
+      window.setTimeout(finish, 700);
     });
-    engineUsed = 'device-speech-synthesis';
+
+    if (!controller.signal.aborted) {
+      await new Promise<void>((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        const locale = params.language === 'ur' ? 'ur' : 'en';
+        const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(locale));
+        const preferred = matching.find((voice) => /female|zira|ayesha|uzma|sara|heera|sana|jenny|aria/i.test(voice.name))
+          || matching[0];
+        if (preferred) utterance.voice = preferred;
+        utterance.lang = params.language === 'ur' ? 'ur-PK' : 'en-US';
+        utterance.rate = Math.min(1.08, Math.max(0.88, (params.voiceSpeed ?? 1) * 0.94));
+        utterance.pitch = 1.08;
+        utterance.volume = Math.min(1, Math.max(0, params.voiceVolume ?? 1));
+        utterance.onboundary = (event) => {
+          const progress = event.charIndex / Math.max(1, cleanText.length);
+          const syllablePulse = 0.18 + Math.abs(Math.sin(progress * 46)) * 0.48;
+          params.onLipSync?.(syllablePulse, 0.24 + syllablePulse * 0.55);
+        };
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve();
+        synth.resume();
+        synth.speak(utterance);
+      });
+      engineUsed = 'device-speech-synthesis';
+    }
   }
 
   params.onLipSync?.(0, 0);
