@@ -13,12 +13,12 @@ test('returns zero wind when quiet or idle below noise floor', () => {
   assert.equal(computeTargetHairWind({ state: 'listening', micLevel: 0.04, lipOpenness: 0 }), 0);
 });
 
-test('ramps target wind when user speaks into mic or assistant speaks', () => {
+test('keeps hair still for user microphone input and animates only while NOVA speaks', () => {
   const userTalking = computeTargetHairWind({ state: 'listening', micLevel: 0.6, lipOpenness: 0 });
-  assert.ok(userTalking > 0.5 && userTalking <= 1, `Expected strong user wind, got ${userTalking}`);
+  assert.equal(userTalking, 0, 'User microphone input must not animate NOVA while listening');
 
   const ambientSpeech = computeTargetHairWind({ state: 'idle', micLevel: 0.45, lipOpenness: 0 });
-  assert.ok(ambientSpeech > 0.35, `Expected ambient mic voice wind, got ${ambientSpeech}`);
+  assert.equal(ambientSpeech, 0, 'Ambient microphone input must not animate an idle character');
 
   const assistantSpeaking = computeTargetHairWind({
     state: 'speaking',

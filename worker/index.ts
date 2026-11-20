@@ -22,9 +22,38 @@ const status=resolveActiveAiProvider({preference:cfg.ai_provider,hasCloudflareBi
 if(useGemini){model=thinking?'gemini-2.5-pro':'gemini-2.5-flash';provider='google-ai-studio';const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY!),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:prompt}]},contents:[...history.map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]})),{role:'user',parts:[{text:msg}]}]})});const d=await r.json() as any;if(!r.ok)throw new Error(d.error?.message||'Gemini request failed');raw=d.candidates?.[0]?.content?.parts?.map((x:any)=>x.text||'').join('')||'';}
 else return json({error:'Selected AI provider is unavailable. Configure Workers AI or GEMINI_API_KEY, or choose Auto in Settings.'},503);
 if(!raw.trim())throw new Error('AI provider returned an empty response');const parsed=extractEmotionAndCleanText(raw),language=detectUrduIntent(parsed.cleanText)?'ur':lang;await save(db,{sessionId,role:'assistant',content:parsed.cleanText,language,emotion:parsed.emotion,modelUsed:model,providerUsed:provider,thinkingUsed:thinking});return json({reply:parsed.cleanText,emotion:parsed.emotion,language,modelUsed:model,providerUsed:provider,thinkingUsed:thinking,extractedMemories:extracted} satisfies ChatApiResponse);}
+async function vision(request:Request,env:Env){
+  const b=await request.json() as any;
+  const imageBase64=String(b.imageBase64||'');
+  if(!imageBase64||imageBase64.length>5_000_000)return json({error:'A camera snapshot (max 3.75MB) is required.'},400);
+  if(!env.GEMINI_API_KEY)return json({error:'Camera vision needs GEMINI_API_KEY. Add it as a secret to the NOVA Worker, then try again.'},503);
+  const mimeType=String(b.mimeType||'image/jpeg');
+  if(!['image/jpeg','image/png','image/webp'].includes(mimeType))return json({error:'Only JPEG, PNG, or WebP camera images are supported.'},400);
+  const userPrompt=String(b.userPrompt||'Describe what is visible in this camera frame and answer the user naturally.').slice(0,1200);
+  const gestureHint=String(b.gestureHint||'').slice(0,160);
+  const model='gemini-2.5-flash';
+  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      systemInstruction:{parts:[{text:'You are NOVA, a warm Pakistani female visual assistant. Inspect only what is clearly visible in the supplied single camera frame. Do not identify people, infer sensitive traits, or claim certainty about ambiguous details. If asked whether something is visible, answer directly and describe observable objects/actions. Reply in the user’s language (Urdu, Roman Urdu, or English), naturally and concisely. Never claim continuous monitoring: this is one snapshot only. Start with one emotion tag such as [emotion:curious] or [emotion:calm].'}]},
+      contents:[{role:'user',parts:[{inlineData:{mimeType,data:imageBase64}},{text:[userPrompt,gestureHint?'Camera motion hint: '+gestureHint:''].filter(Boolean).join('\n')}]}],
+      generationConfig:{temperature:0.45,maxOutputTokens:500}
+    })
+  });
+  const d=await r.json() as any;
+  if(!r.ok)return json({error:d.error?.message||'Gemini vision request failed.'},502);
+  const raw=d.candidates?.[0]?.content?.parts?.map((x:any)=>x.text||'').join('').trim()||'';
+  if(!raw)return json({error:'Vision model returned an empty response.'},502);
+  const parsed=extractEmotionAndCleanText(raw),reply=parsed.cleanText;
+  const language=detectUrduIntent(reply)?'ur':'en';
+  const sessionId=String(b.sessionId||crypto.randomUUID()).slice(0,120);
+  await save(env.DB,{sessionId,role:'assistant',content:reply,language,emotion:parsed.emotion,modelUsed:model,providerUsed:'google-ai-studio-vision'});
+  return json({reply,emotion:parsed.emotion,language,modelUsed:model});
+}
 export default {async fetch(request:Request,env:Env){const u=new URL(request.url),p=u.pathname,m=request.method,db=env.DB;if(p==='/api/health')return json({ok:true,runtime:'cloudflare-worker',timestamp:new Date().toISOString(),database:'D1'});try{
 if(p==='/api/state'&&m==='GET')return json(await getState(db,env));
 if(p==='/api/chat'&&m==='POST')return await chat(request,env);
+if(p==='/api/vision'&&m==='POST')return await vision(request,env);
 if(p==='/api/config'&&m==='PUT'){const b=await request.json() as Record<string,unknown>;const allowed=new Set(Object.keys(DEFAULT));for(const [k,v] of Object.entries(b))if(allowed.has(k)&&v!==undefined)await exec(db,'INSERT INTO app_config(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP',k,String(v));const cfg=await getConfig(db);return json({config:cfg,providerStatus:resolveActiveAiProvider({preference:cfg.ai_provider,hasCloudflareBinding:!!env.AI,hasCloudflareRest:false,hasGoogleAiKey:!!env.GEMINI_API_KEY})});}
 const c=p.match(/^\/api\/conversations\/([^/]+)$/);if(c&&m==='GET')return json({messages:await all(db,'SELECT id,session_id sessionId,role,content,language,emotion,timestamp,model_used modelUsed,provider_used providerUsed,thinking_used thinkingUsed,skill_executed skillExecuted FROM conversations WHERE session_id=? ORDER BY id',decodeURIComponent(c[1]))});if(c&&m==='DELETE'){await exec(db,'DELETE FROM conversations WHERE session_id=?',decodeURIComponent(c[1]));return json({ok:true});}
 if(p==='/api/memories'&&m==='POST'){const b=await request.json() as any;if(!b.value?.trim())return json({error:'Memory value required'},400);await exec(db,'INSERT INTO memories(category,key,value,source,confidence) VALUES(?,?,?,?,1)',b.category||'fact',b.key||'manual_entry',b.value.trim(),'manual');const memories=await all(db,'SELECT * FROM memories WHERE is_deleted=0 ORDER BY id DESC');return json({memory:memories[0],memories});}if(p==='/api/memories'&&m==='DELETE'){await exec(db,'UPDATE memories SET is_deleted=1');return json({ok:true,memories:[]});}const mi=p.match(/^\/api\/memories\/(\d+)$/);if(mi&&m==='DELETE'){await exec(db,'UPDATE memories SET is_deleted=1 WHERE id=?',+mi[1]);return json({ok:true});}
